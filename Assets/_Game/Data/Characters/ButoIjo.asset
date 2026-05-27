@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e6f759f834b3cd74e8ff33b89e62c7fe, type: 3}
+  m_Name: ButoIjo
+  m_EditorClassIdentifier: Assembly-CSharp::CharacterData
+  characterName: Buto Ijo
+  icon: {fileID: 21300000, guid: 118fdbf6f82c5b04192db73ed2b0ef4a, type: 3}
+  maxHp: 50
+  attack: 10
+  defense: 5
+  speed: 10
+  overworldAnimator: {fileID: 0}
+  battleAnimator: {fileID: 22100000, guid: 5d6a9c9b48145bc4bbf6f6f2ab69e66e, type: 2}
+  battleSprite: {fileID: 21300000, guid: 118fdbf6f82c5b04192db73ed2b0ef4a, type: 3}
