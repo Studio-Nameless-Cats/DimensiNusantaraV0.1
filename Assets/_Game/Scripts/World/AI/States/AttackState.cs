@@ -47,10 +47,11 @@ public class AttackState : IEnemyState
 
         triggered = true;
 
-        // Tell GameController which overworld enemy started this battle so its
-        // id can be recorded in DefeatedEnemyRegistry when the player wins.
+        // Tell GameController which overworld enemy started this battle (so its
+        // id goes into DefeatedEnemyRegistry on win) AND where it stood (so a
+        // bone marker spawns there on the next overworld scene load).
         if (GameController.Instance != null)
-            GameController.Instance.SetPendingOverworldEnemy(enemy.EnemyId);
+            GameController.Instance.SetPendingOverworldDefeatInfo(enemy.EnemyId, enemy.transform.position);
 
         player.TriggerEncounter(data.EncounterToTrigger);
     }

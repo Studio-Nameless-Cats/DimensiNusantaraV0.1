@@ -32,6 +32,9 @@ public class GameController : MonoBehaviour
     [Header("References")]
     [SerializeField] private Fader fader;
 
+    [Tooltip("Marker prefabs spawned in the overworld (e.g. bones at defeated-enemy positions). Optional — if null, no markers spawn.")]
+    [SerializeField] private WorldMarkerData worldMarkerData;
+
     // ── State ─────────────────────────────────────────────────────────────────
     private GameState        state;
     private PlayerController player;
@@ -54,6 +57,11 @@ public class GameController : MonoBehaviour
     // Id of the overworld-AI enemy that started the current battle (empty for grass encounters).
     // Static so it survives the scene reload between Overworld → Battle.
     private static string              pendingOverworldEnemyId;
+
+    // Position of that enemy at the moment it triggered the battle. Used after the win
+    // to drop a bone marker at the exact spot. Static for the same scene-reload reason
+    // as the id above. Vector3.zero when no overworld enemy is pending.
+    private static Vector3             pendingOverworldDefeatPosition;
 
     // Tracks the last overworld scene we were in, so we can detect region changes
     // and wipe the defeated-enemy registry when the player moves to a new area.
@@ -128,6 +136,10 @@ public class GameController : MonoBehaviour
             }
             lastOverworldSceneName = scene.name;
 
+            // Spawn bone markers for every enemy that's been defeated in this region.
+            // Done AFTER the region-change clear so wiped ids don't leave ghost markers.
+            SpawnBoneMarkers();
+
             state = GameState.FreeRoam;
             Debug.Log("[GameController] Back in Overworld — state set to FreeRoam.");
             if (fader != null)
@@ -170,6 +182,44 @@ public class GameController : MonoBehaviour
         }
     }
 
+    // ── World markers ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Walks <see cref="DefeatedEnemyRegistry.DefeatPositions"/> and instantiates
+    /// one bone-marker prefab per defeated enemy at its recorded death position.
+    /// Markers live in the scene and die with it — the registry is the source
+    /// of truth, this just renders it on every overworld load.
+    /// </summary>
+    private void SpawnBoneMarkers()
+    {
+        if (worldMarkerData == null || worldMarkerData.BoneMarkerPrefab == null)
+        {
+            // Either no marker data wired, or the prefab slot is empty. Skip silently —
+            // bone markers are polish, not required for the game to function.
+            return;
+        }
+
+        int spawned = 0;
+        var prefab  = worldMarkerData.BoneMarkerPrefab;
+        var yOffset = worldMarkerData.BoneMarkerYOffset;
+
+        foreach (var kvp in DefeatedEnemyRegistry.DefeatPositions)
+        {
+            Vector3 pos = kvp.Value + Vector3.up * yOffset;
+            var go = Instantiate(prefab, pos, Quaternion.identity);
+            go.name = $"BoneMarker_{kvp.Key}";
+
+            // If the prefab has a BoneMarker component on the root, hand it the id.
+            var marker = go.GetComponent<BoneMarker>();
+            if (marker != null) marker.Initialize(kvp.Key);
+
+            spawned++;
+        }
+
+        if (spawned > 0)
+            Debug.Log($"[GameController] Spawned {spawned} bone marker(s) for defeated overworld enemies.");
+    }
+
     // ── Update ────────────────────────────────────────────────────────────────
 
     void Update()
@@ -209,25 +259,29 @@ public class GameController : MonoBehaviour
     private void OnBattleOver(bool playerWon)
     {
         // If an overworld AI enemy started this battle and the player won,
-        // record its id so it stays despawned across the upcoming scene reload.
+        // record its id + position so it stays despawned (and drops a bone
+        // marker) across the upcoming scene reload.
         if (playerWon && !string.IsNullOrEmpty(pendingOverworldEnemyId))
         {
-            DefeatedEnemyRegistry.MarkDefeated(pendingOverworldEnemyId);
-            Debug.Log($"[GameController] Overworld enemy '{pendingOverworldEnemyId}' defeated — added to DefeatedEnemyRegistry (now {DefeatedEnemyRegistry.Count} defeated).");
+            DefeatedEnemyRegistry.MarkDefeated(pendingOverworldEnemyId, pendingOverworldDefeatPosition);
+            Debug.Log($"[GameController] Overworld enemy '{pendingOverworldEnemyId}' defeated at {pendingOverworldDefeatPosition} — added to DefeatedEnemyRegistry (now {DefeatedEnemyRegistry.Count} defeated).");
         }
-        pendingOverworldEnemyId = null;
+        pendingOverworldEnemyId        = null;
+        pendingOverworldDefeatPosition = Vector3.zero;
 
         StartCoroutine(TransitionToOverworld(playerWon));
     }
 
     /// <summary>
-    /// Called by AttackState right before it triggers an encounter, so the win
-    /// handler knows which overworld enemy to mark as defeated. Pass an empty
-    /// string (or skip the call entirely) for grass / random encounters.
+    /// Called by AttackState right before it triggers an encounter. Records
+    /// both the enemy id (so we can mark it defeated on win) and its world
+    /// position (so we can spawn a bone marker there on the next overworld
+    /// scene load). Pass an empty id for grass / random encounters.
     /// </summary>
-    public void SetPendingOverworldEnemy(string enemyId)
+    public void SetPendingOverworldDefeatInfo(string enemyId, Vector3 worldPosition)
     {
-        pendingOverworldEnemyId = enemyId;
+        pendingOverworldEnemyId        = enemyId;
+        pendingOverworldDefeatPosition = worldPosition;
     }
 
     private IEnumerator TransitionToOverworld(bool playerWon)
