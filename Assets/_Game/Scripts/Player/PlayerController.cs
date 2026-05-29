@@ -91,7 +91,10 @@ public class PlayerController : MonoBehaviour
     public void OnInteract(InputValue value)
     {
         if (value.isPressed)
+        {
+            playerAnimator?.TriggerInteract(); // fires interactTrigger + resets idle timer
             TryInteract();
+        }
     }
 
     // ── Interaction ──────────────────────────────────────────────────────────

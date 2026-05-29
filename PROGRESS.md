@@ -4,6 +4,50 @@ Newest entries at the top. Each entry = one session. Keep tight: what shipped, f
 
 ---
 
+## 2026-05-29 (pt. 2) — Implementation: Overworld Animation System (code only)
+
+**Shipped:** Code-side of the 4-state animator overhaul locked in the earlier session today. Idle timer + interact trigger plumbing in place. Editor walkthrough deferred to next session per CLAUDE.md Rule 3.
+
+> **Reconciliation note (back-filled 2026-05-29 pt.3):** These pt.1 / pt.2 edits were originally written into the retired `NusantaraRPG_Scripts/` mirror because the Cowork session still had the old Claude Projects folder mounted. On 2026-05-29 pt.3 the Unity project folder was mounted directly, the drift was caught, and the pt.2 code below was applied to `Assets/_Game/Scripts/Player/` to bring Unity in sync. A new `ResetIdleOnExit.cs` StateMachineBehaviour was also added at that point to handle the natural-exit timer reset (see pt.3 entry).
+
+**Files touched (final landing paths in Unity):**
+- EDIT: `Assets/_Game/Scripts/Player/PlayerAnimator.cs` — added `idleThreshold` SerializeField (default 7s), `IdleTrigger`/`InteractTrigger` hash constants, `_idleTimer` + `_idleFired` state, public `ResetIdleTimer()`, public `TriggerInteract()`. In `UpdateAnimation()`: moving branch resets timer; non-moving branch accumulates and fires `idleTrigger` once when threshold crossed. FreeRoam gating is implicit (HandleUpdate only ticks in FreeRoam — noted in doc comment, no GameController.State accessor needed).
+- EDIT: `Assets/_Game/Scripts/Player/PlayerController.cs` — `OnInteract()` now calls `playerAnimator?.TriggerInteract()` before `TryInteract()`. No `ResetIdleTimer()` in `OnMove` — relying on the moving-branch reset inside `UpdateAnimation` to avoid double-reset.
+
+**Key decisions (deltas from research doc):**
+1. **No GameController.State accessor added.** The research notes implied one was needed for FreeRoam gating, but `PlayerController.HandleUpdate()` is already gated to FreeRoam upstream by `GameController`. `UpdateAnimation()` only ticks when state == FreeRoam already. Kept GameController untouched.
+2. **`_idleFired` bool guards trigger re-firing.** Without it, once `_idleTimer >= idleThreshold`, the trigger would fire every frame past the threshold. `_idleFired` flips back to false in `ResetIdleTimer()`.
+3. **flipX logic preserved.** Mid-session the mirror file looked like it didn't have the 2026-05-27 flipX edit, so it briefly got dropped. User caught it. Restored: dominant-right movement → `flipX = true`, vertical → `flipX = false`.
+
+**Open questions / next steps:**
+- **Next session: editor walkthrough** — rename current `Idle` state → `Standby`, convert to 4-direction blend tree on `moveX`/`moveY` using stood-still clips, add `idleTrigger` + `interactTrigger` params to the Animator, add `Idle_1` state with read-a-book clip, add `Interact` state (single non-directional clip), wire all 7 transitions per the locked table from 2026-05-29 pt.1. Per CLAUDE.md Rule 3, editor setup is its own session.
+- **Decision deferred (later):** when expanding Idle from 1 → 2-3 clips, add `idleVariant` int param + per-variant transitions + selection strategy (random / sequential / weighted).
+- **Other GDD features still not started:** Phase B-E from 2026-05-27 pt.2 (day/night, loot, initiative context, elite spawns), Skill/Ability, Level/EXP, Party Recruitment, Quest, Item/Inventory, Cultural Encyclopedia, multiple areas/scenes, story/cutscene.
+
+---
+
+## 2026-05-29 — Research: Overworld Animation System Overhaul (Standby / Walking / Idle / Interact)
+
+**Shipped:** Locked architecture for replacing the current 2-state animator (Idle default + Walking blend tree) with a 4-state system. No code written this session; next session implements.
+
+**Files touched:** None (research only). Read for context: `Player/PlayerAnimator.cs`, `Player/PlayerController.cs`, `Party/FollowerController.cs`, `SETUP_GUIDE.md`.
+
+**Locked design decisions:**
+1. **Four animator states:** `Standby` (default, blend tree on `moveX`/`moveY` using latched last-facing — same 4-direction setup as walking, just the stood-still clips), `Walking` (existing blend tree, unchanged), `Idle` (single state `Idle_1` for v1), `Interact` (single non-directional clip).
+2. **moveX/moveY already persist** as last-facing in `PlayerAnimator.UpdateAnimation()` — Standby blend tree reuses them, no new `faceX`/`faceY` params needed. Right direction continues via existing `SpriteRenderer.flipX` toggle.
+3. **Idle timer = 7s default**, exposed as `idleThreshold` on PlayerAnimator. Gated on `GameController.State == FreeRoam` so it doesn't accumulate during Dialog/Battle/Cutscene.
+4. **Idle v1 = 1 clip (`Idle_1`), single-facing.** `idleVariant` int param deferred — when scaling to 2-3 clips later, add it back and split the transition. Keeps Animator param list at 5: `isMoving`, `moveX`, `moveY`, `idleTrigger`, `interactTrigger`.
+5. **Interact = single clip**, fired via `AnyState → Interact` on `interactTrigger` so it cleanly cancels mid-Idle.
+6. **Followers untouched** — they inherit Standby + Walking automatically (same `PlayerAnimator` script). No Idle/Interact for them (driven by leader input only).
+7. **Transition table locked.** Key behaviors: Standby↔Walking on `isMoving` flip, Idle_1→Walking on `isMoving==true` with 0s duration (instant cancel), Idle_1→Standby via Exit Time, Interact→Walking on `isMoving==true` (0s) else Interact→Standby on Exit Time.
+
+**Open questions / next steps:**
+- **Next session: implement the code** (PlayerAnimator + PlayerController edits per file plan). Code-only per CLAUDE.md Rule 3.
+- **Session after that: full editor walkthrough.**
+- **Decision deferred to later:** when expanding Idle from 1 → 2-3 clips, re-introduce `idleVariant` int param.
+
+---
+
 ## 2026-05-27 (pt. 3) — Phase A shipped: rest action + bone markers
 
 **Shipped:** Phase A from the post-launch enhancement plan. Player can now rest at a `RestPoint` to fully heal the party and respawn every defeated overworld enemy in the region. Bone markers automatically appear at death sites and persist across battle-scene reloads, vanishing only on rest or region-change. Also: Cowork workspace switched from the retired script mirror to the live Unity project at `C:\Users\Fantom\Documents\Unity\DimensiNusantaraV0.1` — direct-edit workflow now (no more manual VSC apply step).
