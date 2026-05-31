@@ -4,6 +4,39 @@ Newest entries at the top. Each entry = one session. Keep tight: what shipped, f
 
 ---
 
+## 2026-05-29 (pt. 3) — Animator editor walkthrough + drift reconciliation (shipped end-to-end)
+
+**Shipped:** The 4-state overworld animator system is **live and validated in Play Mode**. Standby ↔ Walk ↔ Idle_1 ↔ Interact all transition correctly; idle countdown fires after the configured threshold; ResetIdleOnExit restarts the timer cleanly after natural-end exits. Also cleaned up a sync mess between the retired script mirror and the live Unity project — Unity is now fully in sync and is the sole source of truth.
+
+**Files touched (this session, in Unity):**
+- EDIT: `Assets/_Game/Scripts/Player/PlayerAnimator.cs` — full rewrite to land 2026-05-29 pt.2 code (`idleThreshold` SerializeField default 7s, all 5 param hashes, `_idleTimer`/`_idleFired` state, idle-accumulator branch in `UpdateAnimation()`, public `ResetIdleTimer()`, public `TriggerInteract()`). flipX comments from the prior Unity version preserved.
+- EDIT: `Assets/_Game/Scripts/Player/PlayerController.cs` — `OnInteract()` now calls `playerAnimator?.TriggerInteract()` before `TryInteract()` (~line 92).
+- NEW: `Assets/_Game/Scripts/Player/ResetIdleOnExit.cs` — `StateMachineBehaviour` with `OnStateExit` that finds `PlayerAnimator` via `GetComponent`/`GetComponentInParent` and calls `ResetIdleTimer()`. Attached in the Animator to **Idle_1** and **Interact** states.
+- EDIT: `PROGRESS.md` — prepended missing 2026-05-29 pt.1 (research) and pt.2 (implementation) entries that had only been written into the dead mirror.
+
+**Animator Controller wired (Editor work, no code):**
+- 5 parameters confirmed: `isMoving` (Bool), `moveX` (Float), `moveY` (Float), `idleTrigger` (Trigger), `interactTrigger` (Trigger).
+- 4 states: **Standby** (default, 2D blend tree on moveX/moveY with 4 stood-still clips), **Walk** (existing blend tree), **Idle_1** (single read-a-book clip, Loop OFF), **Interact** (single non-directional clip, Loop OFF). Idle_1 and Interact each carry the `ResetIdleOnExit` SMB.
+- 8 transitions wired per the locked table (Standby↔Walk on `isMoving`; Standby→Idle_1 on `idleTrigger`; Idle_1→Walk on `isMoving==true` with 0s duration; Idle_1→Standby on Exit Time 0.95; AnyState→Interact on `interactTrigger` with `Can Transition To Self` OFF; Interact→Walk on `isMoving==true` 0s; Interact→Standby on Exit Time 0.95).
+- Note: user's state names use `Walk` (not `Walking`). Functionally identical — Unity state names aren't referenced from C#.
+
+**Key decisions:**
+1. **Cowork workspace direct-mounted to Unity project root** at the start of this session. The prior `C:\Users\Fantom\Documents\Claude\Projects\Nusantara Game` mount was still active and its old CLAUDE.md was being loaded instead of the (correct) Unity-root CLAUDE.md from 2026-05-27 pt.3. Caught the drift, applied missing code, mirror is officially dead — disconnect at convenience.
+2. **Idle_1 `Loop Time` = OFF.** User caught my mistake mid-walkthrough (I'd said ON). With Loop ON, the Exit Time transition never fires reliably and the player gets stuck reading forever. Same for Interact (Loop OFF, one-shot).
+3. **`ResetIdleOnExit` SMB was the missing piece.** `PlayerAnimator.UpdateAnimation`'s moving branch resets the timer, but when Idle_1/Interact ends via Exit Time while the player is still standing still, the moving branch never runs and `_idleFired` stays true — no subsequent idle ever fires. The SMB's `OnStateExit` calls `ResetIdleTimer()` to clear both `_idleTimer` and `_idleFired` so the next 7-second countdown starts cleanly.
+4. **8 transitions, not 7.** Locked design called it "7"; Interact has two exit paths (→ Walk on `isMoving`, → Standby on Exit Time), making it 8 lines. Same intent.
+5. **AnyState → Interact `Can Transition To Self` MUST be unchecked.** Default is on; if left, `interactTrigger` causes Interact to exit and re-enter itself in a loop.
+6. **Transition order on multi-exit states matters.** Idle_1 and Interact each have two outgoing transitions — `→ Walk` listed FIRST so a movement input on the last frame of the clip wins over the Exit Time path.
+
+**Open questions / next steps:**
+- **Bump `idleThreshold` back to gameplay value.** It's currently set to ~3s for Play Mode testing. Tune to ~7s (or whatever feels right) before shipping.
+- **When expanding Idle from 1 → 2-3 clips:** reintroduce `idleVariant` int param + per-variant transitions on `idleTrigger && idleVariant == N`. Selection strategy (random / sequential / weighted) TBD at that point.
+- **Disconnect the retired mirror folder** (`C:\Users\Fantom\Documents\Claude\Projects\Nusantara Game`) from Cowork at convenience. Unity project root is the only mount we need.
+- **GDD features still not started:** Phase B–E from 2026-05-27 pt.2 (day/night cycle + spawn conditions, loot drops + minimal resource system, battle initiative context for stealth/ambush, elite spawns), Skill/Ability, Level/EXP, Party Recruitment, Quest, Item/Inventory, Cultural Encyclopedia, multiple areas/scenes, story/cutscene.
+- **Phase B is the natural next code session.** `RestPoint.OnRestTaken` already exposes the hook `TimeOfDay` will subscribe to.
+
+---
+
 ## 2026-05-29 (pt. 2) — Implementation: Overworld Animation System (code only)
 
 **Shipped:** Code-side of the 4-state animator overhaul locked in the earlier session today. Idle timer + interact trigger plumbing in place. Editor walkthrough deferred to next session per CLAUDE.md Rule 3.
