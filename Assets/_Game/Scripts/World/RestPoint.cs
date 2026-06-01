@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 /// <summary>
 /// Standalone interactable that lets the player "rest" — heals the party fully
@@ -30,8 +31,14 @@ using UnityEngine;
 public class RestPoint : MonoBehaviour
 {
     [Header("Interaction")]
-    [Tooltip("Key the player presses while overlapping the rest point to rest.")]
-    [SerializeField] private KeyCode restKey = KeyCode.E;
+    [Tooltip("Key the player presses while overlapping the rest point to rest (new Input System).")]
+    [SerializeField] private Key restKey = Key.E;
+
+    [Header("Autosave")]
+    [Tooltip("Save the game when the player rests (checkpoint / bonfire pattern).")]
+    [SerializeField] private bool autosaveOnRest = true;
+    [Tooltip("Which save slot the rest autosave writes to (0..2).")]
+    [SerializeField] private int autosaveSlot = 0;
 
     [Header("References (optional)")]
     [Tooltip("PartySystem to heal. If blank, we find one in the scene the first time the player rests.")]
@@ -73,7 +80,8 @@ public class RestPoint : MonoBehaviour
         if (GameController.Instance != null && GameController.Instance.State != GameState.FreeRoam)
             return;
 
-        if (!Input.GetKeyDown(restKey)) return;
+        var kb = Keyboard.current;
+        if (kb == null || !kb[restKey].wasPressedThisFrame) return;
 
         DoRest();
     }
@@ -94,6 +102,16 @@ public class RestPoint : MonoBehaviour
         // 3. Fire the rest event. Phase B's TimeOfDay subscribes here.
         OnRestTaken?.Invoke();
 
-        Debug.Log($"[RestPoint] Rested at '{name}'. Party healed, defeated-enemy registry cleared.");
+        // 4. Autosave (checkpoint/bonfire pattern). Rest only happens in FreeRoam,
+        //    so this is always a safe save point.
+        if (autosaveOnRest)
+        {
+            bool ok = SaveSystem.Save(autosaveSlot);
+            Debug.Log(ok
+                ? $"[RestPoint] Autosaved to slot {autosaveSlot}."
+                : $"[RestPoint] Autosave to slot {autosaveSlot} failed — see error above.");
+        }
+
+        Debug.Log($"[RestPoint] Rested at '{name}'. Party healed, current-region enemies will respawn.");
     }
 }

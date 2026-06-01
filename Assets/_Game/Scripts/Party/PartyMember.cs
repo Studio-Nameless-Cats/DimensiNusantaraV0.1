@@ -15,6 +15,13 @@ public class PartyMember
         currentHp = characterData.MaxHp;
     }
 
+    /// <summary>Rebuild a member from saved state — restores exact current HP (clamped).</summary>
+    public PartyMember(CharacterData characterData, int savedHp)
+    {
+        _base     = characterData;
+        currentHp = Mathf.Clamp(savedHp, 0, characterData.MaxHp);
+    }
+
     // ── Read-only references to base stats ──────────────────────────────────
     public CharacterData Base   => _base;
     public string Name          => _base.Name;

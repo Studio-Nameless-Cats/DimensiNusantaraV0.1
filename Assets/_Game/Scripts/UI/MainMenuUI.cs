@@ -71,6 +71,7 @@ public class MainMenuUI : MonoBehaviour
     private void OnNewGame()
     {
         // TODO: if a save exists, prompt "overwrite?" before loading.
+        SaveSystem.NewGame();   // reset playtime + world state for a fresh run
         SceneManager.LoadScene(gameSceneName);
     }
 
@@ -78,8 +79,9 @@ public class MainMenuUI : MonoBehaviour
     {
         if (!SaveSystem.HasSave()) return; // safety guard
 
-        // TODO: load save data before transitioning.
-        SceneManager.LoadScene(gameSceneName);
+        // SaveManager loads the saved scene itself and restores party + position
+        // once it finishes loading — no manual SceneManager.LoadScene here.
+        SaveSystem.Load();
     }
 
     private void OnQuit()

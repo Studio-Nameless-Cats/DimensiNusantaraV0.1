@@ -1,37 +1,25 @@
+using Nusantara.SaveSystem;
+
 /// <summary>
-/// Stub save system. Replace the body of each method when real save data is implemented.
+/// Thin, global-namespace facade over <see cref="SaveManager"/> so existing callers
+/// (MainMenuUI, etc.) keep a simple API. All real work lives in SaveManager.
 ///
-/// Usage:
-///   SaveSystem.HasSave()   → true if a save file exists (currently always false)
-///   SaveSystem.DeleteSave() → wipes the save (no-op for now)
+///   SaveSystem.HasSave()    → does slot 0 have a save?
+///   SaveSystem.Save()       → snapshot + write slot 0 (call from FreeRoam only)
+///   SaveSystem.Load()       → load slot 0 (loads the saved scene, then restores)
+///   SaveSystem.DeleteSave() → wipe slot 0
+///   SaveSystem.NewGame()    → reset playtime + world state for a fresh game
+///
+/// Pass a slot index (0..SaveManager.SlotCount-1) to target a specific slot.
 /// </summary>
 public static class SaveSystem
 {
-    // ── Public API ────────────────────────────────────────────────────────────
+    public static bool HasSave(int slot = 0)   => SaveManager.HasSave(slot);
+    public static bool Save(int slot = 0)      => SaveManager.Save(slot);
+    public static bool Load(int slot = 0)      => SaveManager.Load(slot);
+    public static void DeleteSave(int slot = 0) => SaveManager.DeleteSave(slot);
+    public static void NewGame()                => SaveManager.NewGame();
 
-    /// <summary>Returns true if a save file exists for the current player.</summary>
-    public static bool HasSave()
-    {
-        // TODO: replace with real check, e.g.:
-        //   return System.IO.File.Exists(SavePath);
-        //   or: return PlayerPrefs.HasKey("SaveExists");
-        return false;
-    }
-
-    /// <summary>Deletes the current save file.</summary>
-    public static void DeleteSave()
-    {
-        // TODO: System.IO.File.Delete(SavePath);
-        //       or: PlayerPrefs.DeleteKey("SaveExists");
-    }
-
-    /// <summary>Marks that a save exists (call this when the player saves).</summary>
-    public static void MarkSaveExists()
-    {
-        // TODO: write save data here.
-    }
-
-    // ── Internals (uncomment when implementing) ───────────────────────────────
-    // private static string SavePath =>
-    //     System.IO.Path.Combine(UnityEngine.Application.persistentDataPath, "save.dat");
+    /// <summary>Legacy no-op kept for compatibility — saving now writes real data via Save().</summary>
+    public static void MarkSaveExists() => SaveManager.Save();
 }

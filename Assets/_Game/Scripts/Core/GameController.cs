@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 
 /// <summary>
@@ -124,16 +125,16 @@ public class GameController : MonoBehaviour
         }
         else if (scene.name == overworldSceneName)
         {
-            // Region change: if the last overworld scene we loaded had a
-            // different name, wipe the defeated-enemy registry so enemies in
-            // the new region populate as fresh. Same-name reloads (the
-            // Battle → Overworld return trip) are NOT region changes.
+            // Switch the defeated-enemy registry to this region. Kills now PERSIST
+            // per region (multi-region map) instead of being wiped on region change,
+            // so revisiting an old area remembers which enemies you already beat.
+            // (Rest still wipes the current region; New Game wipes everything.)
             if (!string.IsNullOrEmpty(lastOverworldSceneName) &&
                 lastOverworldSceneName != scene.name)
             {
-                DefeatedEnemyRegistry.Clear();
-                Debug.Log($"[GameController] Region change: '{lastOverworldSceneName}' → '{scene.name}'. Cleared DefeatedEnemyRegistry.");
+                Debug.Log($"[GameController] Region change: '{lastOverworldSceneName}' → '{scene.name}'. Switching registry region (kills preserved).");
             }
+            DefeatedEnemyRegistry.SetCurrentRegion(scene.name);
             lastOverworldSceneName = scene.name;
 
             // Spawn bone markers for every enemy that's been defeated in this region.
@@ -226,6 +227,24 @@ public class GameController : MonoBehaviour
     {
         if (state == GameState.FreeRoam)
             player?.HandleUpdate();
+
+        // ── TEMP DEBUG: save/load hotkeys for testing the save system ──────────
+        // F5 = save slot 0 (FreeRoam only), F9 = load slot 0. New Input System.
+        // REMOVE once a real RestPoint is placed in the scene.
+        var kb = Keyboard.current;
+        if (kb != null)
+        {
+            if (state == GameState.FreeRoam && kb.f5Key.wasPressedThisFrame)
+            {
+                bool ok = SaveSystem.Save();
+                Debug.Log(ok ? "[DEBUG] F5 → saved slot 0." : "[DEBUG] F5 → save failed (see error).");
+            }
+            if (kb.f9Key.wasPressedThisFrame)
+            {
+                if (SaveSystem.HasSave()) SaveSystem.Load();
+                else Debug.Log("[DEBUG] F9 → no save in slot 0 yet.");
+            }
+        }
     }
 
     // ── Battle flow ───────────────────────────────────────────────────────────
