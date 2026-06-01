@@ -50,8 +50,10 @@ public class BattleSystem : MonoBehaviour
 
     [Header("Parry")]
     [SerializeField] private ParrySystem parrySystem;
-    [Tooltip("Damage multiplier for the counter-attack the player lands after a successful parry. 1 = normal damage, 1.5 = 50% bonus.")]
+    [Tooltip("Counter-attack multiplier after a PERFECT parry (all circles tapped dead-on). 1 = normal, 1.5 = +50%.")]
     [SerializeField] private float parryCounterMultiplier = 1.5f;
+    [Tooltip("Counter-attack multiplier after a GOOD (but not perfect) parry. Lower than Perfect — precision is rewarded.")]
+    [SerializeField] private float goodParryCounterMultiplier = 0.75f;
     [Tooltip("How many TAP circles appear during the parry window. More = easier to parry.")]
     [SerializeField] [Range(1, 5)] private int parryButtonCount = 2;
 
@@ -272,7 +274,7 @@ public class BattleSystem : MonoBehaviour
         var target = alivePlayers[UnityEngine.Random.Range(0, alivePlayers.Count)];
 
         // ── Parry prompt ──────────────────────────────────────────────────────
-        bool wasParried = false;
+        ParryTier parryGrade = ParryTier.Miss;
 
         if (parrySystem != null)
         {
@@ -280,18 +282,23 @@ public class BattleSystem : MonoBehaviour
                 attacker.Member.Name,
                 target.Member.Name,
                 parryButtonCount,
-                result => wasParried = result);
+                result => parryGrade = result);
         }
 
-        if (wasParried)
+        if (parryGrade == ParryTier.Miss)
         {
-            // Successful parry: incoming attack is completely nullified,
-            // then the defending player unit immediately counter-attacks.
-            yield return PerformParryCounter(defender: target, originalAttacker: attacker);
+            // Failed parry (or no parry system): take the hit in full.
+            yield return PerformAttack(attacker, target, isPlayerAttack: false);
         }
         else
         {
-            yield return PerformAttack(attacker, target, isPlayerAttack: false);
+            // Successful parry: incoming attack is fully blocked, then the defender
+            // counters — Perfect lands a bigger counter than Good (precision pays off).
+            float counterMult = parryGrade == ParryTier.Perfect
+                ? parryCounterMultiplier
+                : goodParryCounterMultiplier;
+            yield return PerformParryCounter(defender: target, originalAttacker: attacker,
+                                             counterMultiplier: counterMult, grade: parryGrade);
         }
     }
 
@@ -341,19 +348,22 @@ public class BattleSystem : MonoBehaviour
     /// <summary>
     /// Called when the player successfully parries an enemy attack.
     /// The incoming attack is fully negated (0 damage), then the defender
-    /// immediately strikes back at the original attacker with a damage bonus.
+    /// immediately strikes back at the original attacker. The counter multiplier
+    /// scales with parry precision (Perfect > Good).
     /// </summary>
-    private IEnumerator PerformParryCounter(BattleUnit defender, BattleUnit originalAttacker)
+    private IEnumerator PerformParryCounter(BattleUnit defender, BattleUnit originalAttacker,
+                                            float counterMultiplier, ParryTier grade)
     {
         state = BattleState.Busy;
 
-        yield return dialogBox.TypeDialog($"Parry berhasil! {defender.Member.Name} membalas serangan!");
+        string lead = grade == ParryTier.Perfect ? "PARRY SEMPURNA" : "Parry berhasil";
+        yield return dialogBox.TypeDialog($"{lead}! {defender.Member.Name} membalas serangan!");
 
         defender.PlayAttackAnimation();
         yield return new WaitForSeconds(attackDelay);
 
         originalAttacker.PlayHitAnimation();
-        int damage = originalAttacker.Member.TakeDamage(defender.Member.Attack, parryCounterMultiplier);
+        int damage = originalAttacker.Member.TakeDamage(defender.Member.Attack, counterMultiplier);
         originalAttacker.UpdateHud();
 
         yield return dialogBox.TypeDialog(
@@ -376,6 +386,9 @@ public class BattleSystem : MonoBehaviour
             turnOrderDisplay?.MarkFainted(unit);
             yield return dialogBox.TypeDialog($"{unit.Member.Name} tewas mengenaskan!");
             yield return new WaitForSeconds(0.5f);
+
+            // Clear the fallen unit from view entirely (sprite, name, HP bar).
+            unit.Hide();
 
             bool playerWon  = !enemyUnits.Any(u => !u.Member.IsFainted);
             bool playerLost = !playerUnits.Any(u => !u.Member.IsFainted);

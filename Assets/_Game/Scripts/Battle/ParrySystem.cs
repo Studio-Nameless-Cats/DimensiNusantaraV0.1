@@ -60,28 +60,30 @@ public class ParrySystem : MonoBehaviour
     /// <summary>
     /// Called by BattleSystem before enemy damage is applied.
     /// buttonCount : how many sequential TAP circles to show.
-    /// onComplete  : receives true only if ALL circles were tapped in time.
+    /// onComplete  : receives the overall parry grade — Miss if ANY circle was
+    ///               missed, otherwise the WORST tier landed (all Perfect → Perfect,
+    ///               any Good → Good). Drives block + counter quality.
     /// </summary>
     public IEnumerator Show(string attackerName, string targetName,
-                             int buttonCount, Action<bool> onComplete)
+                             int buttonCount, Action<ParryTier> onComplete)
     {
         // ── Validate ──────────────────────────────────────────────────────────
         if (parryOverlay == null)
         {
             Debug.LogError("[ParrySystem] parryOverlay is not assigned! ❌");
-            onComplete?.Invoke(false);
+            onComplete?.Invoke(ParryTier.Miss);
             yield break;
         }
         if (tapButtonPrefab == null)
         {
             Debug.LogError("[ParrySystem] tapButtonPrefab is not assigned! ❌");
-            onComplete?.Invoke(false);
+            onComplete?.Invoke(ParryTier.Miss);
             yield break;
         }
         if (buttonsContainer == null)
         {
             Debug.LogError("[ParrySystem] buttonsContainer is not assigned! ❌");
-            onComplete?.Invoke(false);
+            onComplete?.Invoke(ParryTier.Miss);
             yield break;
         }
 
@@ -98,7 +100,10 @@ public class ParrySystem : MonoBehaviour
         EnsurePool(buttonCount);
 
         // ── Sequential circle loop ────────────────────────────────────────────
-        bool allTapped = true;
+        // Start optimistic (Perfect) and downgrade to the worst tier landed; any
+        // outright Miss fails the whole parry immediately (fail-fast).
+        ParryTier grade  = ParryTier.Perfect;
+        bool      failed = false;
 
         for (int i = 0; i < buttonCount; i++)
         {
@@ -107,10 +112,9 @@ public class ParrySystem : MonoBehaviour
 
             yield return StartCoroutine(btn.Activate(buttonWindow));
 
-            if (!btn.WasTapped)
+            if (btn.Result == ParryTier.Miss)
             {
-                allTapped = false;
-                // Flash hintText red to signal failure feedback
+                failed = true;
                 if (hintText)
                 {
                     hintText.text  = "Miss! Parry gagal!";
@@ -119,10 +123,23 @@ public class ParrySystem : MonoBehaviour
                 break; // fail fast — no need to show remaining circles
             }
 
+            // Downgrade the overall grade to the worst non-miss tier landed.
+            if (btn.Result == ParryTier.Good) grade = ParryTier.Good;
+
             // Short gap between circles
             if (i < buttonCount - 1)
                 yield return new WaitForSeconds(betweenDelay);
         }
+
+        if (!failed && hintText)
+        {
+            hintText.text  = grade == ParryTier.Perfect ? "Sempurna!" : "Bagus!";
+            hintText.color = grade == ParryTier.Perfect
+                ? new Color(1.00f, 0.84f, 0.30f)   // gold
+                : new Color(0.30f, 0.85f, 0.40f);  // green
+        }
+
+        ParryTier finalGrade = failed ? ParryTier.Miss : grade;
 
         // ── Close overlay ─────────────────────────────────────────────────────
         // Small pause so the last feedback colour is visible
@@ -132,8 +149,8 @@ public class ParrySystem : MonoBehaviour
         // Reset hint colour for next time
         if (hintText) hintText.color = Color.white;
 
-        Debug.Log($"[ParrySystem] Parry {(allTapped ? "SUCCESS ✅" : "FAILED ❌")} ({buttonCount} circle(s))");
-        onComplete?.Invoke(allTapped);
+        Debug.Log($"[ParrySystem] Parry result: {finalGrade} ({buttonCount} circle(s))");
+        onComplete?.Invoke(finalGrade);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

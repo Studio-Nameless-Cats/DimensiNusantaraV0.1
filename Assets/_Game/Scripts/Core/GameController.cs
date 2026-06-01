@@ -68,6 +68,14 @@ public class GameController : MonoBehaviour
     // and wipe the defeated-enemy registry when the player moves to a new area.
     private static string              lastOverworldSceneName;
 
+    // Player's overworld position/facing captured the instant a battle starts, so we
+    // can drop them back exactly where they were after the battle ends (instead of the
+    // scene's default spawn). Static to survive the Overworld→Battle→Overworld reloads.
+    // Only set when WE start a battle, so save-loads (handled by SaveManager) don't clash.
+    private static bool                hasPendingPlayerReturn;
+    private static Vector3             pendingPlayerReturnPosition;
+    private static float               pendingPlayerReturnYaw;
+
     // ── Unity lifecycle ───────────────────────────────────────────────────────
 
     void Awake()
@@ -140,6 +148,20 @@ public class GameController : MonoBehaviour
             // Spawn bone markers for every enemy that's been defeated in this region.
             // Done AFTER the region-change clear so wiped ids don't leave ghost markers.
             SpawnBoneMarkers();
+
+            // Put the player back where they were when the battle started (not the
+            // scene's default spawn). Only fires for battle returns — save-loads leave
+            // this flag false and are restored by SaveManager instead.
+            if (hasPendingPlayerReturn && player != null)
+            {
+                var cc = player.GetComponent<CharacterController>();
+                if (cc != null) cc.enabled = false;             // CC overrides transform writes
+                player.transform.position    = pendingPlayerReturnPosition;
+                player.transform.eulerAngles = new Vector3(0f, pendingPlayerReturnYaw, 0f);
+                if (cc != null) cc.enabled = true;
+                Debug.Log($"[GameController] Restored player to pre-battle position {pendingPlayerReturnPosition}.");
+            }
+            hasPendingPlayerReturn = false;
 
             state = GameState.FreeRoam;
             Debug.Log("[GameController] Back in Overworld — state set to FreeRoam.");
@@ -261,6 +283,15 @@ public class GameController : MonoBehaviour
         pendingEncounter    = encounterData;
         // Copy the member list NOW — before the scene unloads and destroys the Player
         pendingPartyMembers = player.Party.HealthyMembers;
+
+        // Remember where the player is standing so we can put them back here after the
+        // battle instead of the Overworld's default spawn point.
+        if (player != null)
+        {
+            pendingPlayerReturnPosition = player.transform.position;
+            pendingPlayerReturnYaw      = player.transform.eulerAngles.y;
+            hasPendingPlayerReturn      = true;
+        }
 
         Debug.Log($"[GameController] Encounter triggered!" +
                   $"\n  Encounter data:  {(encounterData       != null ? encounterData.name : "NULL ❌")}" +

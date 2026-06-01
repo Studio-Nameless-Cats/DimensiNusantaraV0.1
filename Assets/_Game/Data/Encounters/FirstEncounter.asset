@@ -17,5 +17,5 @@ MonoBehaviour:
     spawnWeight: 0
   - characterData: {fileID: 11400000, guid: d2bf8b3835422f14994cc9ed1ecf69a7, type: 2}
     spawnWeight: 0
-  minEnemies: 2
-  maxEnemies: 3
+  minEnemies: 1
+  maxEnemies: 2

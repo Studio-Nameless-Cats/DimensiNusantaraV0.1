@@ -91,4 +91,18 @@ public class BattleUnit : MonoBehaviour
 
     /// <summary>Refreshes the HP bar after the member's HP changes.</summary>
     public void UpdateHud() => hud?.UpdateHP(member);
+
+    // ── Visibility ──────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Removes a fallen unit from the battlefield view: hides its HUD (name + HP bar)
+    /// and its model/sprite, so the player sees no lingering corpse. The underlying
+    /// PartyMember data is left intact, so win/lose and turn-skip checks still work.
+    /// Called by BattleSystem after the faint animation has played.
+    /// </summary>
+    public void Hide()
+    {
+        if (hud != null) hud.gameObject.SetActive(false);  // explicit: HUD may be a separate canvas
+        gameObject.SetActive(false);
+    }
 }

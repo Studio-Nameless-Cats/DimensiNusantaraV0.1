@@ -40,6 +40,14 @@ public class RestPoint : MonoBehaviour
     [Tooltip("Which save slot the rest autosave writes to (0..2).")]
     [SerializeField] private int autosaveSlot = 0;
 
+    [Header("World reset")]
+    [Tooltip("Reload the overworld after resting so defeated enemies VISIBLY respawn immediately " +
+             "(bonfire pattern). When autosave is on, reloads from the fresh save so the player " +
+             "stays at the rest point. When autosave is off, reloads the current scene (player " +
+             "returns to the scene's default spawn). Turn off to only clear the data — enemies " +
+             "then reappear on the next natural scene load (after a battle / zone change).")]
+    [SerializeField] private bool reloadWorldOnRest = true;
+
     [Header("References (optional)")]
     [Tooltip("PartySystem to heal. If blank, we find one in the scene the first time the player rests.")]
     [SerializeField] private PartySystem party;
@@ -104,14 +112,37 @@ public class RestPoint : MonoBehaviour
 
         // 4. Autosave (checkpoint/bonfire pattern). Rest only happens in FreeRoam,
         //    so this is always a safe save point.
+        bool saved = false;
         if (autosaveOnRest)
         {
-            bool ok = SaveSystem.Save(autosaveSlot);
-            Debug.Log(ok
+            saved = SaveSystem.Save(autosaveSlot);
+            Debug.Log(saved
                 ? $"[RestPoint] Autosaved to slot {autosaveSlot}."
                 : $"[RestPoint] Autosave to slot {autosaveSlot} failed — see error above.");
         }
 
-        Debug.Log($"[RestPoint] Rested at '{name}'. Party healed, current-region enemies will respawn.");
+        Debug.Log($"[RestPoint] Rested at '{name}'. Party healed, current-region enemies cleared.");
+
+        // 5. World reset. Clearing the registry above only wipes the DATA; enemies that
+        //    already SetActive(false) in Awake won't re-check it until the scene reloads.
+        //    Reload so they visibly respawn now.
+        if (reloadWorldOnRest)
+        {
+            if (saved)
+            {
+                // Reload from the fresh save: respawns enemies (cleared registry was
+                // captured into the save) AND restores the player at the rest point.
+                Debug.Log($"[RestPoint] Reloading world from slot {autosaveSlot} — enemies respawn, position restored.");
+                SaveSystem.Load(autosaveSlot);
+            }
+            else
+            {
+                // No save to reload from — reload the active scene directly so enemies
+                // still respawn. Player returns to the scene's default spawn point.
+                var active = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+                Debug.Log($"[RestPoint] Reloading scene '{active}' — enemies respawn (no autosave; player to default spawn).");
+                UnityEngine.SceneManagement.SceneManager.LoadScene(active);
+            }
+        }
     }
 }

@@ -87,15 +87,18 @@ public class TurnOrderDisplay : MonoBehaviour
     }
 
     /// <summary>
-    /// Call when a unit faints — greys out their slot in the bar.
+    /// Call when a unit faints — removes their icon from the bar entirely.
+    /// The slot's GameObject is deactivated (not destroyed and not removed from the
+    /// list) so the remaining slot indices stay aligned with the turn order for
+    /// <see cref="UpdateCurrentTurn"/>; the Horizontal Layout Group collapses the gap.
     /// </summary>
     public void MarkFainted(BattleUnit unit)
     {
         int idx = order.IndexOf(unit);
         if (idx >= 0 && idx < slots.Count && slots[idx] != null)
         {
-            slots[idx].SetFainted();
-            Debug.Log($"[TurnOrderDisplay] Marked slot {idx} ({unit.Member.Name}) as fainted.");
+            slots[idx].gameObject.SetActive(false);
+            Debug.Log($"[TurnOrderDisplay] Removed slot {idx} ({unit.Member.Name}) from the turn-order bar.");
         }
     }
 }
