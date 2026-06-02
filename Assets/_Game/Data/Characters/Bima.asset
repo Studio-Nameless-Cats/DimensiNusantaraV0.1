@@ -16,9 +16,16 @@ MonoBehaviour:
   characterName: Bima
   icon: {fileID: 21300000, guid: 118fdbf6f82c5b04192db73ed2b0ef4a, type: 3}
   maxHp: 50
+  maxMp: 20
   attack: 10
   defense: 5
   speed: 10
+  skills:
+  - {fileID: 11400000, guid: d061fb82a756e7749b7802066442b0d9, type: 2}
+  - {fileID: 11400000, guid: cb419ad5d21df004288b1200e0a88ebd, type: 2}
+  - {fileID: 11400000, guid: 24c444d4ace97df46bee2420c46e9f72, type: 2}
+  specialSkills:
+  - {fileID: 11400000, guid: ab469eca76f1f3e4ca9ba0f2480ca961, type: 2}
   overworldAnimator: {fileID: 22100000, guid: 1da810c654b63d045992ec97416dc0a3, type: 2}
   battleAnimator: {fileID: 22100000, guid: ea1cce91955a16446b74a5a5c2c1281c, type: 2}
   battleSprite: {fileID: 21300000, guid: 118fdbf6f82c5b04192db73ed2b0ef4a, type: 3}

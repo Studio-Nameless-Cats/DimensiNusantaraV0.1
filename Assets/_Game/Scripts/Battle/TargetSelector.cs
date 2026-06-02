@@ -26,6 +26,8 @@ public class TargetSelector : MonoBehaviour
     [Header("Root")]
     [Tooltip("The entire selector panel. Disabled by default.")]
     [SerializeField] private GameObject panelRoot;
+    [Tooltip("Optional full-screen button behind the panel. Clicking it cancels target selection (backs out to the command menu).")]
+    [SerializeField] private Button backdropButton;
 
     [Header("UI")]
     [Tooltip("Optional header label shown above the target buttons (e.g. 'Pilih musuh:').")]
@@ -51,9 +53,10 @@ public class TargetSelector : MonoBehaviour
 
     /// <summary>
     /// Display the selector with one button per unit in 'targets'.
-    /// onSelected fires when the player picks a target.
+    /// onSelected fires when the player picks a target. onCancel (optional) fires if
+    /// the player taps the backdrop to back out — wire it to reopen the command menu.
     /// </summary>
-    public void Show(List<BattleUnit> targets, Action<BattleUnit> onSelected)
+    public void Show(List<BattleUnit> targets, Action<BattleUnit> onSelected, Action onCancel = null)
     {
         if (panelRoot == null)
         {
@@ -66,6 +69,17 @@ public class TargetSelector : MonoBehaviour
         ClearButtons();
 
         if (titleText) titleText.text = "Pilih musuh:";
+
+        // Backdrop = tap-outside-to-cancel (only if assigned).
+        if (backdropButton)
+        {
+            backdropButton.onClick.RemoveAllListeners();
+            backdropButton.onClick.AddListener(() =>
+            {
+                Hide();
+                onCancel?.Invoke();
+            });
+        }
 
         foreach (var unit in targets)
         {

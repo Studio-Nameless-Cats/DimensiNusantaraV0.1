@@ -41,6 +41,13 @@ public class BattleSystem : MonoBehaviour
     [SerializeField] private TurnOrderDisplay turnOrderDisplay;
     [SerializeField] private DiceRollUI       diceRollUI;
     [SerializeField] private TargetSelector   targetSelector;
+    [SerializeField] private SkillPanel       skillPanel;
+
+    [Header("Special gauge")]
+    [Tooltip("Special-gauge points a player gains when they land a basic attack (0..100).")]
+    [SerializeField] private int specialChargeOnAttack = 20;
+    [Tooltip("Special-gauge points a player gains when they get hit (0..100).")]
+    [SerializeField] private int specialChargeOnHit    = 15;
 
     [Header("Critical Hit")]
     [Tooltip("Probability (0–1) that a Basic Attack triggers the Dice Roll modal.")]
@@ -112,6 +119,7 @@ public class BattleSystem : MonoBehaviour
             Debug.Log($"[BattleSystem] Spawning player unit [{i}]: {healthyMembers[i].Name}");
             var unit = SpawnUnit(playerSpawnPoints[i]);
             if (unit == null) { Debug.LogError($"[BattleSystem] SpawnUnit() returned null for player slot {i}! ❌ Check your BattleUnit prefab has a BattleUnit component on its root."); continue; }
+            healthyMembers[i].ResetSpecial();               // Special gauge starts empty each battle
             unit.Setup(healthyMembers[i], isPlayer: true);  // ← explicitly marked as player
             playerUnits.Add(unit);
         }
@@ -211,22 +219,29 @@ public class BattleSystem : MonoBehaviour
     private IEnumerator ShowPlayerActions(BattleUnit unit)
     {
         yield return dialogBox.TypeDialog($"Apa yang akan dilakukan {unit.Member.Name}?");
+        OpenActionMenu();
+    }
+
+    /// <summary>Shows the 4-button command menu and (re)wires its events. Used both at
+    /// turn start and when the player backs out of a skill panel.</summary>
+    private void OpenActionMenu()
+    {
+        state = BattleState.PlayerAction;
         dialogBox.ShowActionSelector(true);
         dialogBox.EnableButtons(true);
 
         // Wire button events — unsubscribe first to avoid stacking listeners
-        dialogBox.OnAttackPressed -= HandleAttack;
-        dialogBox.OnRunPressed    -= HandleRun;
-        dialogBox.OnAttackPressed += HandleAttack;
-        dialogBox.OnRunPressed    += HandleRun;
+        UnsubscribeButtons();
+        dialogBox.OnAttackPressed  += HandleAttack;
+        dialogBox.OnSkillPressed   += HandleSkill;
+        dialogBox.OnSpecialPressed += HandleSpecial;
+        dialogBox.OnRunPressed     += HandleRun;
     }
 
     private void HandleAttack()
     {
         if (state != BattleState.PlayerAction) return;
-        UnsubscribeButtons();
-        dialogBox.ShowActionSelector(false);
-        dialogBox.EnableButtons(false);
+        CloseActionMenu();
 
         var attacker     = turnOrder[turnIndex];
         var aliveEnemies = enemyUnits.Where(u => !u.Member.IsFainted).ToList();
@@ -240,26 +255,179 @@ public class BattleSystem : MonoBehaviour
             return;
         }
 
-        // Multiple enemies — show target selector, wait for player choice
-        targetSelector.Show(aliveEnemies, chosenTarget =>
-        {
-            StartCoroutine(PerformAttack(attacker, chosenTarget, isPlayerAttack: true));
-        });
+        // Multiple enemies — show target selector, wait for player choice.
+        // Tapping the backdrop backs out to the command menu (attack costs nothing).
+        state = BattleState.Busy;
+        targetSelector.Show(aliveEnemies,
+            chosenTarget => StartCoroutine(PerformAttack(attacker, chosenTarget, isPlayerAttack: true)),
+            onCancel: () => OpenActionMenu());
     }
 
     private void HandleRun()
     {
         if (state != BattleState.PlayerAction) return;
+        CloseActionMenu();
+        StartCoroutine(TryRun());
+    }
+
+    // ── Skill / Special Skill commands ─────────────────────────────────────────
+
+    private void HandleSkill()   => OpenSkillPicker(SkillCategory.Normal);
+    private void HandleSpecial() => OpenSkillPicker(SkillCategory.Special);
+
+    private void OpenSkillPicker(SkillCategory category)
+    {
+        if (state != BattleState.PlayerAction) return;
+
+        var user = turnOrder[turnIndex];
+
+        if (skillPanel == null)
+        {
+            // No panel wired yet — keep the menu open so the button isn't a dead-end.
+            Debug.LogWarning("[BattleSystem] skillPanel not assigned — skill command ignored.");
+            return;
+        }
+
+        CloseActionMenu();
+        state = BattleState.Busy;
+
+        var list = category == SkillCategory.Special
+            ? user.Member.Base.SpecialSkills
+            : user.Member.Base.Skills;
+
+        skillPanel.Show(list, user.Member, category, chosen =>
+        {
+            if (chosen == null)
+            {
+                // Cancelled (tapped outside) — back to the command menu.
+                OpenActionMenu();
+                return;
+            }
+            StartCoroutine(BeginSkill(user, chosen));
+        });
+    }
+
+    private void CloseActionMenu()
+    {
         UnsubscribeButtons();
         dialogBox.ShowActionSelector(false);
         dialogBox.EnableButtons(false);
-        StartCoroutine(TryRun());
     }
 
     private void UnsubscribeButtons()
     {
-        dialogBox.OnAttackPressed -= HandleAttack;
-        dialogBox.OnRunPressed    -= HandleRun;
+        dialogBox.OnAttackPressed  -= HandleAttack;
+        dialogBox.OnSkillPressed   -= HandleSkill;
+        dialogBox.OnSpecialPressed -= HandleSpecial;
+        dialogBox.OnRunPressed     -= HandleRun;
+    }
+
+    /// <summary>Resolves the skill's target(s), then runs it. Handles the per-target
+    /// picker for single-target skills (auto-targets when only one valid choice).</summary>
+    private IEnumerator BeginSkill(BattleUnit user, SkillData skill)
+    {
+        // Note: the resource is spent in PerformSkill (after a target is locked in), so
+        // backing out of target selection costs nothing.
+
+        // Build the candidate target list (side depends on the skill).
+        if (skill.TargetsSelf)
+        {
+            yield return PerformSkill(user, skill, new List<BattleUnit> { user });
+            yield break;
+        }
+
+        var candidates = (skill.TargetsEnemies ? enemyUnits : playerUnits)
+            .Where(u => !u.Member.IsFainted).ToList();
+
+        if (candidates.Count == 0) { OpenActionMenu(); yield break; }
+
+        if (skill.TargetsAll)
+        {
+            yield return PerformSkill(user, skill, candidates);
+            yield break;
+        }
+
+        // Single target: auto-pick if only one, else show the selector.
+        if (candidates.Count == 1 || targetSelector == null)
+        {
+            yield return PerformSkill(user, skill, new List<BattleUnit> { candidates[0] });
+            yield break;
+        }
+
+        // Multiple choices — pick one, or tap outside to back out to the command menu.
+        targetSelector.Show(candidates,
+            chosen => StartCoroutine(PerformSkill(user, skill, new List<BattleUnit> { chosen })),
+            onCancel: () => OpenActionMenu());
+    }
+
+    /// <summary>Spends the skill's resource, then applies its effect (damage or heal) to every target.</summary>
+    private IEnumerator PerformSkill(BattleUnit user, SkillData skill, List<BattleUnit> targets)
+    {
+        // Pay now that a target is committed (cards were only tappable if affordable).
+        bool paid = skill.Category == SkillCategory.Special
+            ? user.Member.SpendSpecial(skill.Cost)
+            : user.Member.SpendMp(skill.Cost);
+        if (!paid)
+        {
+            Debug.LogWarning("[BattleSystem] Could not pay for skill — returning to menu.");
+            OpenActionMenu();
+            yield break;
+        }
+
+        state = BattleState.Busy;
+
+        user.PlayAttackAnimation();
+        yield return new WaitForSeconds(attackDelay);
+
+        if (skill.EffectType == SkillEffectType.Damage)
+        {
+            foreach (var t in targets)
+            {
+                if (t.Member.IsFainted) continue;
+                t.PlayHitAnimation();
+                int dmg = t.Member.TakeDamage(user.Member.Attack, skill.DamageMultiplier);
+                t.UpdateHud();
+                yield return dialogBox.TypeDialog(
+                    $"{user.Member.Name} menggunakan {skill.Name} — {dmg} damage ke {t.Member.Name}!");
+            }
+        }
+        else // Heal
+        {
+            foreach (var t in targets)
+            {
+                t.Member.Heal(skill.HealAmount);
+                t.UpdateHud();
+                yield return dialogBox.TypeDialog(
+                    $"{user.Member.Name} menggunakan {skill.Name} — memulihkan {skill.HealAmount} HP {t.Member.Name}!");
+            }
+        }
+
+        // Resolve faints for any damaged enemies, then continue the turn cycle.
+        yield return ResolveAfterAction();
+    }
+
+    /// <summary>Shared post-action win/lose + turn advance (used by skills, which can
+    /// hit multiple targets). Mirrors the tail of CheckFainted.</summary>
+    private IEnumerator ResolveAfterAction()
+    {
+        foreach (var u in playerUnits.Concat(enemyUnits))
+            if (u.gameObject.activeSelf && u.Member.IsFainted)
+            {
+                u.PlayFaintAnimation();
+                turnOrderDisplay?.MarkFainted(u);
+                yield return dialogBox.TypeDialog($"{u.Member.Name} tewas mengenaskan!");
+                yield return new WaitForSeconds(0.4f);
+                u.Hide();
+            }
+
+        bool playerWon  = !enemyUnits.Any(u => !u.Member.IsFainted);
+        bool playerLost = !playerUnits.Any(u => !u.Member.IsFainted);
+
+        if (playerWon)  { yield return dialogBox.TypeDialog("Kamu menang dalam pertarungan!"); yield return new WaitForSeconds(1f); EndBattle(true);  yield break; }
+        if (playerLost) { yield return dialogBox.TypeDialog("Party kamu dikalahkan...");        yield return new WaitForSeconds(1f); EndBattle(false); yield break; }
+
+        AdvanceTurnIndex();
+        StartNextTurn();
     }
 
     // ── Enemy AI ──────────────────────────────────────────────────────────────
@@ -333,6 +501,11 @@ public class BattleSystem : MonoBehaviour
         target.PlayHitAnimation();
         int damage = target.Member.TakeDamage(attacker.Member.Attack, damageMultiplier);
         target.UpdateHud();
+
+        // Build the Special gauge: the attacker charges on a basic attack, and any
+        // player who gets hit charges too (so a defending party still builds toward a special).
+        if (isPlayerAttack)      attacker.Member.AddSpecial(specialChargeOnAttack);
+        if (target.IsPlayerUnit) target.Member.AddSpecial(specialChargeOnHit);
 
         string dialogMsg = isCrit
             ? $"CRITICAL HIT! {attacker.Member.Name} memberikan {damage} damage kepada {target.Member.Name}!"

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -18,9 +19,16 @@ public class CharacterData : ScriptableObject
 
     [Header("Base Stats")]
     [SerializeField] private int maxHp = 50;
+    [SerializeField] private int maxMp = 20;
     [SerializeField] private int attack = 10;
     [SerializeField] private int defense = 5;
     [SerializeField] private int speed = 10;
+
+    [Header("Skills")]
+    [Tooltip("Normal skills (cost MP) — shown under the SKILL command button.")]
+    [SerializeField] private List<SkillData> skills = new List<SkillData>();
+    [Tooltip("Special skills (cost the Special gauge) — shown under the SPECIAL SKILL command button.")]
+    [SerializeField] private List<SkillData> specialSkills = new List<SkillData>();
 
     [Header("Overworld Visuals")]
     [SerializeField] private RuntimeAnimatorController overworldAnimator;
@@ -34,6 +42,9 @@ public class CharacterData : ScriptableObject
     public string Name                                  => characterName;
     public Sprite Icon                                  => icon;
     public int MaxHp                                    => maxHp;
+    public int MaxMp                                    => maxMp;
+    public IReadOnlyList<SkillData> Skills              => skills;
+    public IReadOnlyList<SkillData> SpecialSkills       => specialSkills;
     public int Attack                                   => attack;
     public int Defense                                  => defense;
     public int Speed                                    => speed;

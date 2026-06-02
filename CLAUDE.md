@@ -90,10 +90,21 @@ Folder layout inside `Assets/_Game/Scripts/`:
 - `Core/` — `GameController`, `Fader` (state, scene transitions)
 - `Player/` — `PlayerController`, `PlayerAnimator`
 - `Party/` — `PartySystem`, `PartyMember`, `FollowerController`
-- `Battle/` — `BattleSystem`, `BattleUnit`, `BattleHud`, `BattleDialogBox`
+- `Battle/` — `BattleSystem`, `BattleUnit`, `BattleHud`, `BattleDialogBox`, `TurnOrderDisplay`/`TurnOrderSlot`, `TargetSelector`, `DiceRollUI`, `ParrySystem`/`ParryButton`, `SkillPanel`/`SkillCard` (4-button command menu: Attack / Skill / Special Skill / Run)
+- `Core/Save/` — `SaveData`, `SaveManager`, `ISaveParticipant`; facade `Core/SaveSystem`
 - `World/` — `NPCController`, `EncounterTrigger`, `RestPoint` (Phase A), `BoneMarker` (Phase A)
 - `World/AI/` — `OverworldEnemyController`, `EnemyPerception`, `AlertBubble`, `VisionConeRenderer`, `LockWorldRotation`, `DefeatedEnemyRegistry`, `States/*`
-- `Data/` — `CharacterData`, `EnemyEncounterData`, `EnemyAIData`, `WorldMarkerData` (Phase A) (ScriptableObjects)
+- `Data/` — `CharacterData` (now + MaxMp, Skills/SpecialSkills lists), `SkillData`, `EnemyEncounterData`, `EnemyAIData`, `WorldMarkerData`, `GameDatabase` (ScriptableObjects)
+
+Resources: party members have **MP** (persists, restored on rest — NOT yet in SaveData) and a per-battle **Special gauge** (0..100, resets each battle, fills via attacks/taking hits). Skills cost MP; special skills cost the gauge. No MP/Special HUD meters yet.
+
+---
+
+## Design direction — ACTIVE changes (set 2026-06-02; read before animation/overworld work)
+
+1. **Overworld is SOLO** — only Bima (Main Character) shows in the overworld; party followers appear only in battle. Stop spawning followers in the overworld (party still feeds battle via `pendingPartyMembers`).
+2. **Animation = single LEFT clip + `flipX` for everything** (overworld + battle). One left-facing clip per action (Walk/Standby/Idle/Interact/…); flip on last horizontal input (right → flipX true). Battle: friendly units flipX=true (face right), enemies use the base left clip un-flipped. Replaces the 4-direction blend-tree approach; `PlayerAnimator` simplifies accordingly.
+3. **Overworld-enemy facing is BROKEN** — nothing feeds `PlayerAnimator.UpdateAnimation()` for script-moved enemies (no Animator/flipX refs anywhere in `World/AI/`), so they always face left. Fix as part of #2 by driving the enemy's animator/flipX from its own movement velocity.
 
 ---
 

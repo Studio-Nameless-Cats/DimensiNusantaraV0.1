@@ -5,14 +5,17 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Handles the battle text box (dialog) and the player action selector (Attack / Run).
+/// Handles the battle text box (dialog) and the player action selector
+/// (Attack / Skill / Special Skill / Run).
 ///
 /// UI Setup (Canvas children):
 ///   - DialogPanel  → Image background
 ///     - DialogText → TextMeshProUGUI
-///   - ActionPanel  → contains the attack/run buttons
-///     - AttackButton → Button + TextMeshProUGUI child
-///     - RunButton    → Button + TextMeshProUGUI child
+///   - ActionPanel  → contains the 4 command buttons
+///     - AttackButton       → Button + TextMeshProUGUI child
+///     - SkillButton        → Button + TextMeshProUGUI child
+///     - SpecialSkillButton → Button + TextMeshProUGUI child
+///     - RunButton          → Button + TextMeshProUGUI child
 /// </summary>
 public class BattleDialogBox : MonoBehaviour
 {
@@ -23,10 +26,14 @@ public class BattleDialogBox : MonoBehaviour
     [Header("Action Selector")]
     [SerializeField] private GameObject actionPanel;
     [SerializeField] private Button     attackButton;
+    [SerializeField] private Button     skillButton;
+    [SerializeField] private Button     specialSkillButton;
     [SerializeField] private Button     runButton;
 
     // ── Events ───────────────────────────────────────────────────────────────
     public event Action OnAttackPressed;
+    public event Action OnSkillPressed;
+    public event Action OnSpecialPressed;
     public event Action OnRunPressed;
 
     // ── Unity lifecycle ──────────────────────────────────────────────────────
@@ -42,11 +49,19 @@ public class BattleDialogBox : MonoBehaviour
         if (attackButton == null)
             Debug.LogError("[BattleDialogBox] attackButton is NOT assigned in the Inspector! ❌");
 
+        if (skillButton == null)
+            Debug.LogError("[BattleDialogBox] skillButton is NOT assigned in the Inspector! ❌");
+
+        if (specialSkillButton == null)
+            Debug.LogError("[BattleDialogBox] specialSkillButton is NOT assigned in the Inspector! ❌");
+
         if (runButton == null)
             Debug.LogError("[BattleDialogBox] runButton is NOT assigned in the Inspector! ❌");
 
-        attackButton?.onClick.AddListener(() => OnAttackPressed?.Invoke());
-        runButton?.onClick.AddListener(()   => OnRunPressed?.Invoke());
+        attackButton?.onClick.AddListener(()       => OnAttackPressed?.Invoke());
+        skillButton?.onClick.AddListener(()        => OnSkillPressed?.Invoke());
+        specialSkillButton?.onClick.AddListener(() => OnSpecialPressed?.Invoke());
+        runButton?.onClick.AddListener(()          => OnRunPressed?.Invoke());
 
         // ✅ This is intentional — the action panel hides at start
         // and only shows when it is the player's turn
@@ -88,7 +103,9 @@ public class BattleDialogBox : MonoBehaviour
 
     public void EnableButtons(bool enabled)
     {
-        if (attackButton) attackButton.interactable = enabled;
-        if (runButton)    runButton.interactable    = enabled;
+        if (attackButton)       attackButton.interactable       = enabled;
+        if (skillButton)        skillButton.interactable        = enabled;
+        if (specialSkillButton) specialSkillButton.interactable = enabled;
+        if (runButton)          runButton.interactable          = enabled;
     }
 }
