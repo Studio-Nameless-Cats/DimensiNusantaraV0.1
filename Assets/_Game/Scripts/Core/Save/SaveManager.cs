@@ -214,7 +214,7 @@ namespace Nusantara.SaveSystem
                                          "Add it to the GameDatabase / assign an id.");
                         continue;
                     }
-                    data.party.members.Add(new PartyMemberSaveData { characterId = id, currentHp = m.CurrentHp });
+                    data.party.members.Add(new PartyMemberSaveData { characterId = id, currentHp = m.CurrentHp, currentMp = m.CurrentMp });
                 }
             }
 
@@ -266,8 +266,17 @@ namespace Nusantara.SaveSystem
             if (data.saveVersion == SaveData.CurrentVersion) return data;
 
             Debug.Log($"[SaveManager] Migrating save v{data.saveVersion} → v{SaveData.CurrentVersion}.");
-            // Add stepwise migrations here as the format evolves, e.g.:
-            //   if (data.saveVersion < 2) { /* populate new fields with defaults */ data.saveVersion = 2; }
+
+            // v1 → v2: PartyMemberSaveData gained currentMp. Old saves have no value;
+            // mark them "unset" (-1) so restore fills MP to max rather than to 0.
+            if (data.saveVersion < 2)
+            {
+                if (data.party?.members != null)
+                    foreach (var m in data.party.members)
+                        m.currentMp = -1;
+                data.saveVersion = 2;
+            }
+
             data.saveVersion = SaveData.CurrentVersion;
             return data;
         }

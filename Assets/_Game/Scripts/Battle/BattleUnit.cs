@@ -8,7 +8,7 @@ using UnityEngine;
 /// Setup:
 ///   - Place BattleUnit prefabs at the spawn point positions in the Battle scene.
 ///   - Assign the BattleHud reference (a Canvas child near the unit).
-///   - The Animator on the model must have triggers: Attack, Hit, Faint.
+///   - The Animator on the model must have triggers: Attack, Hit, Faint, Parry.
 /// </summary>
 public class BattleUnit : MonoBehaviour
 {
@@ -19,11 +19,14 @@ public class BattleUnit : MonoBehaviour
 
     [Header("References")]
     [SerializeField] private BattleHud hud;
+    [Tooltip("Sprite for this unit's model. Auto-found in children if empty. Flipped so friendly units face right, enemies face left.")]
+    [SerializeField] private SpriteRenderer spriteRenderer;
 
     // ── Animator parameter hashes ─────────────────────────────────────────────
     private static readonly int AttackHash = Animator.StringToHash("Attack");
     private static readonly int HitHash    = Animator.StringToHash("Hit");
     private static readonly int FaintHash  = Animator.StringToHash("Faint");
+    private static readonly int ParryHash  = Animator.StringToHash("Parry");
 
     // ── State ─────────────────────────────────────────────────────────────────
     private PartyMember member;
@@ -39,6 +42,8 @@ public class BattleUnit : MonoBehaviour
     void Awake()
     {
         animator = GetComponentInChildren<Animator>();
+        if (spriteRenderer == null)
+            spriteRenderer = GetComponentInChildren<SpriteRenderer>();
 
         if (animator == null)
             Debug.LogWarning($"[BattleUnit] No Animator found in children of '{gameObject.name}'. Animations will be skipped. Add an Animator to your model child.");
@@ -60,6 +65,13 @@ public class BattleUnit : MonoBehaviour
     {
         isPlayerUnit = isPlayer;
         member       = partyMember;
+
+        // Single left-facing battle clip set (same model as the overworld).
+        // Friendly units sit on the left and face RIGHT → mirror the left clip (flipX=true).
+        // Enemies sit on the right and face LEFT → use the base clip un-flipped (flipX=false).
+        // Battle units don't move directionally, so this one-time set at spawn is enough.
+        if (spriteRenderer != null)
+            spriteRenderer.flipX = isPlayer;
         Debug.Log($"[BattleUnit] Setting up '{partyMember.Name}' | HP:{partyMember.CurrentHp}/{partyMember.MaxHp} | ATK:{partyMember.Attack} | SPD:{partyMember.Speed} | IsPlayerUnit:{isPlayerUnit}");
 
         if (partyMember.Base.BattleAnimator != null && animator != null)
@@ -86,11 +98,17 @@ public class BattleUnit : MonoBehaviour
     public void PlayAttackAnimation() => animator?.SetTrigger(AttackHash);
     public void PlayHitAnimation()    => animator?.SetTrigger(HitHash);
     public void PlayFaintAnimation()  => animator?.SetTrigger(FaintHash);
+    /// <summary>Deflect-and-riposte clip, played when the player successfully parries and strikes back.</summary>
+    public void PlayParryAnimation()  => animator?.SetTrigger(ParryHash);
 
     // ── HUD ───────────────────────────────────────────────────────────────────
 
     /// <summary>Refreshes the HP bar after the member's HP changes.</summary>
     public void UpdateHud() => hud?.UpdateHP(member);
+
+    /// <summary>Refreshes only the MP bar + Special gauge (e.g. after charging the
+    /// Special on a basic attack, or spending MP on a skill — no HP change).</summary>
+    public void RefreshResources() => hud?.UpdateResources(member);
 
     // ── Visibility ──────────────────────────────────────────────────────────────
 

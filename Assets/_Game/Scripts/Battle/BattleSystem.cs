@@ -64,6 +64,14 @@ public class BattleSystem : MonoBehaviour
     [Tooltip("How many TAP circles appear during the parry window. More = easier to parry.")]
     [SerializeField] [Range(1, 5)] private int parryButtonCount = 2;
 
+    [Header("Juice")]
+    [Tooltip("Optional camera shake on impacts. Assign the Battle Camera's CameraShake component. Leave null to disable.")]
+    [SerializeField] private CameraShake cameraShake;
+    [Tooltip("Shake magnitude for a normal hit / skill hit.")]
+    [SerializeField] private float hitShakeMagnitude  = 0.15f;
+    [Tooltip("Shake magnitude for a critical hit or a perfect-parry counter (heavier).")]
+    [SerializeField] private float critShakeMagnitude = 0.30f;
+
     [Header("Timing")]
     [SerializeField] private float enemyTurnDelay = 0.8f;   // pause before enemy acts
     [SerializeField] private float attackDelay    = 0.5f;   // pause after attack anim starts
@@ -375,6 +383,7 @@ public class BattleSystem : MonoBehaviour
         }
 
         state = BattleState.Busy;
+        user.RefreshResources();   // show the MP / Special spend immediately
 
         user.PlayAttackAnimation();
         yield return new WaitForSeconds(attackDelay);
@@ -387,6 +396,7 @@ public class BattleSystem : MonoBehaviour
                 t.PlayHitAnimation();
                 int dmg = t.Member.TakeDamage(user.Member.Attack, skill.DamageMultiplier);
                 t.UpdateHud();
+                ShakeCamera(hitShakeMagnitude);
                 yield return dialogBox.TypeDialog(
                     $"{user.Member.Name} menggunakan {skill.Name} — {dmg} damage ke {t.Member.Name}!");
             }
@@ -482,13 +492,15 @@ public class BattleSystem : MonoBehaviour
     {
         state = isPlayerAttack ? BattleState.PlayerAttack : BattleState.EnemyAttack;
 
-        attacker.PlayAttackAnimation();
-        yield return new WaitForSeconds(attackDelay);
-
         // ── Dice Roll: player attacks only, with critTriggerChance probability ──
-        bool isCrit = false;
+        // Resolve the dice BEFORE swinging so the attack animation doesn't fire
+        // before the crit is even decided. When no dice roll happens (the common
+        // case), the swing plays immediately on the button press as before.
+        bool isCrit       = false;
+        bool willRollDice = isPlayerAttack && diceRollUI != null
+                            && UnityEngine.Random.value < critTriggerChance;
 
-        if (isPlayerAttack && diceRollUI != null && UnityEngine.Random.value < critTriggerChance)
+        if (willRollDice)
         {
             yield return diceRollUI.Show(
                 attacker.Member.Name,
@@ -498,14 +510,23 @@ public class BattleSystem : MonoBehaviour
             if (isCrit) damageMultiplier = critMultiplier;
         }
 
+        attacker.PlayAttackAnimation();
+        yield return new WaitForSeconds(attackDelay);
+
         target.PlayHitAnimation();
         int damage = target.Member.TakeDamage(attacker.Member.Attack, damageMultiplier);
         target.UpdateHud();
+        ShakeCamera(isCrit ? critShakeMagnitude : hitShakeMagnitude);
 
         // Build the Special gauge: the attacker charges on a basic attack, and any
         // player who gets hit charges too (so a defending party still builds toward a special).
         if (isPlayerAttack)      attacker.Member.AddSpecial(specialChargeOnAttack);
         if (target.IsPlayerUnit) target.Member.AddSpecial(specialChargeOnHit);
+
+        // Reflect the Special-gauge change on the HUDs (target's HP bar already
+        // refreshed via UpdateHud above; this catches the attacker's gauge).
+        if (isPlayerAttack)      attacker.RefreshResources();
+        if (target.IsPlayerUnit) target.RefreshResources();
 
         string dialogMsg = isCrit
             ? $"CRITICAL HIT! {attacker.Member.Name} memberikan {damage} damage kepada {target.Member.Name}!"
@@ -532,12 +553,13 @@ public class BattleSystem : MonoBehaviour
         string lead = grade == ParryTier.Perfect ? "PARRY SEMPURNA" : "Parry berhasil";
         yield return dialogBox.TypeDialog($"{lead}! {defender.Member.Name} membalas serangan!");
 
-        defender.PlayAttackAnimation();
+        defender.PlayParryAnimation();
         yield return new WaitForSeconds(attackDelay);
 
         originalAttacker.PlayHitAnimation();
         int damage = originalAttacker.Member.TakeDamage(defender.Member.Attack, counterMultiplier);
         originalAttacker.UpdateHud();
+        ShakeCamera(grade == ParryTier.Perfect ? critShakeMagnitude : hitShakeMagnitude);
 
         yield return dialogBox.TypeDialog(
             $"{defender.Member.Name} membalas serangan {originalAttacker.Member.Name} sebesar {damage} damage!");

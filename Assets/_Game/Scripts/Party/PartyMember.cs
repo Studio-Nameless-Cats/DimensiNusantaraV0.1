@@ -21,12 +21,19 @@ public class PartyMember
         currentMp = characterData.MaxMp;
     }
 
-    /// <summary>Rebuild a member from saved state — restores exact current HP (clamped).</summary>
+    /// <summary>Rebuild a member from saved state — restores exact current HP (clamped). MP starts full.</summary>
     public PartyMember(CharacterData characterData, int savedHp)
+        : this(characterData, savedHp, -1) { }
+
+    /// <summary>
+    /// Rebuild a member from saved state — restores current HP and MP (both clamped).
+    /// Pass savedMp = -1 to restore MP to full (used for legacy v1 saves with no MP field).
+    /// </summary>
+    public PartyMember(CharacterData characterData, int savedHp, int savedMp)
     {
         _base     = characterData;
         currentHp = Mathf.Clamp(savedHp, 0, characterData.MaxHp);
-        currentMp = characterData.MaxMp; // MP not saved yet — start full (forward hook)
+        currentMp = savedMp < 0 ? characterData.MaxMp : Mathf.Clamp(savedMp, 0, characterData.MaxMp);
     }
 
     // ── Read-only references to base stats ──────────────────────────────────

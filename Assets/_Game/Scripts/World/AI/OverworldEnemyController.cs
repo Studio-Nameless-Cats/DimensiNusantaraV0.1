@@ -44,6 +44,14 @@ public class OverworldEnemyController : MonoBehaviour
     [Tooltip("Pop-up '!' / '?' bubble shown on state transitions. Leave empty to skip.")]
     [SerializeField] private AlertBubble alertBubble;
 
+    [Header("Sprite Visuals (optional)")]
+    [Tooltip("Sprite to mirror via flipX so the enemy faces its movement direction. Auto-found in children if left empty.")]
+    [SerializeField] private SpriteRenderer spriteRenderer;
+    [Tooltip("Animator with an 'isMoving' Bool param to drive walk/standby. Auto-found in children if left empty. Optional.")]
+    [SerializeField] private Animator visualAnimator;
+
+    private static readonly int IsMovingHash = Animator.StringToHash("isMoving");
+
     // ── Components ───────────────────────────────────────────────────────────
     private CharacterController cc;
 
@@ -109,6 +117,10 @@ public class OverworldEnemyController : MonoBehaviour
             Debug.LogWarning($"[OverworldEnemyController] '{name}' has an empty EnemyId — it will respawn after every battle. Set a unique id in the Inspector.", this);
 
         cc = GetComponent<CharacterController>();
+
+        // Sprite/animator for facing. Auto-find so existing prefabs need no rewiring.
+        if (spriteRenderer == null) spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+        if (visualAnimator == null) visualAnimator = GetComponentInChildren<Animator>();
 
         // Build the state instances once and reuse them.
         IdleState        = new IdleState();
@@ -178,6 +190,8 @@ public class OverworldEnemyController : MonoBehaviour
         motion.y = verticalVelocity;
 
         cc.Move(motion * Time.deltaTime);
+
+        UpdateVisual(worldDir);
     }
 
     /// <summary>Stand still but keep the gravity loop ticking so we don't drift.</summary>
@@ -187,6 +201,26 @@ public class OverworldEnemyController : MonoBehaviour
         else               verticalVelocity += aiData.Gravity * Time.deltaTime;
 
         cc.Move(new Vector3(0f, verticalVelocity, 0f) * Time.deltaTime);
+
+        UpdateVisual(Vector3.zero);
+    }
+
+    /// <summary>
+    /// Drives the enemy's own sprite facing + walk anim from its movement direction.
+    /// Single left-facing clip mirrored via flipX (same model as PlayerAnimator):
+    /// moving right → flipX = true; pure-vertical or idle → keep current facing.
+    /// Needed because nothing else feeds this enemy's animator, so it used to be
+    /// stuck facing left (PROGRESS.md 2026-06-02 pt.2, change #3).
+    /// </summary>
+    private void UpdateVisual(Vector3 horizontalDir)
+    {
+        bool moving = horizontalDir.sqrMagnitude > 0.0001f;
+
+        if (spriteRenderer != null && Mathf.Abs(horizontalDir.x) > 0.001f)
+            spriteRenderer.flipX = horizontalDir.x > 0f;
+
+        if (visualAnimator != null)
+            visualAnimator.SetBool(IsMovingHash, moving);
     }
 
     /// <summary>Smoothly rotate the body to face the given horizontal direction.</summary>

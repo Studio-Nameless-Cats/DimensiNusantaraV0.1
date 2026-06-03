@@ -17,7 +17,7 @@ namespace Nusantara.SaveSystem
     public class SaveData
     {
         /// <summary>Bump this whenever SaveData's shape changes; add a migration in SaveManager.</summary>
-        public const int CurrentVersion = 1;
+        public const int CurrentVersion = 2;   // v2: added PartyMemberSaveData.currentMp
 
         public int saveVersion = CurrentVersion;
 
@@ -68,6 +68,7 @@ namespace Nusantara.SaveSystem
     {
         public string characterId;  // CharacterData.Id — resolved via GameDatabase on load
         public int    currentHp;
+        public int    currentMp = -1;   // -1 = "unset" → restore to full MP (v1 saves migrate to this)
         // Future: level, exp, equipment ids, learned skill ids — add fields here.
     }
 

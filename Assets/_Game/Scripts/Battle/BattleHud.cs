@@ -36,6 +36,24 @@ public class BattleHud : MonoBehaviour
     [SerializeField] private Slider          hpSlider;
     [SerializeField] private TextMeshProUGUI hpText;
 
+    [Header("MP (optional)")]
+    [Tooltip("Mana bar. Leave null on enemy HUDs (enemies don't show MP).")]
+    [SerializeField] private Slider          mpSlider;
+    [Tooltip("Optional 'current / max' MP label.")]
+    [SerializeField] private TextMeshProUGUI mpText;
+    [Tooltip("Flat colour for the MP fill.")]
+    [SerializeField] private Color           mpColor = new Color(0.30f, 0.55f, 0.95f, 1f);
+
+    [Header("Special gauge (optional)")]
+    [Tooltip("Per-battle Special gauge (0..100). Leave null on enemy HUDs.")]
+    [SerializeField] private Slider          specialSlider;
+    [Tooltip("Optional Special % label.")]
+    [SerializeField] private TextMeshProUGUI specialText;
+    [Tooltip("Fill colour when the Special gauge is NOT yet full.")]
+    [SerializeField] private Color           specialColor      = new Color(0.95f, 0.75f, 0.20f, 1f);
+    [Tooltip("Fill colour once the Special gauge is full (ready to unleash).")]
+    [SerializeField] private Color           specialReadyColor = new Color(1f, 0.45f, 0.15f, 1f);
+
     [Tooltip("Optional chip/lag bar stacked behind the main fill. Leave null to disable the trail effect.")]
     [SerializeField] private Slider damageTrailSlider;
 
@@ -75,6 +93,10 @@ public class BattleHud : MonoBehaviour
         // Paint the trail fill once so the chip colour is correct.
         var trailFill = damageTrailSlider != null ? damageTrailSlider.fillRect?.GetComponent<Image>() : null;
         if (trailFill != null) trailFill.color = trailColor;
+
+        // Paint the MP fill once (flat colour).
+        var mpFill = mpSlider != null ? mpSlider.fillRect?.GetComponent<Image>() : null;
+        if (mpFill != null) mpFill.color = mpColor;
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -90,6 +112,33 @@ public class BattleHud : MonoBehaviour
 
         UpdateFillColor();
         RefreshHpText(member);
+
+        UpdateResources(member);
+    }
+
+    /// <summary>
+    /// Refreshes the MP bar + Special gauge (instant, no tween). Safe to call any time
+    /// a member spends MP or charges the Special gauge. No-ops on HUDs that don't wire
+    /// these optional sliders (e.g. enemy HUDs).
+    /// </summary>
+    public void UpdateResources(PartyMember member)
+    {
+        if (mpSlider != null)
+        {
+            mpSlider.value = member.MaxMp > 0 ? (float)member.CurrentMp / member.MaxMp : 0f;
+            if (mpText != null) mpText.text = $"{member.CurrentMp} / {member.MaxMp}";
+        }
+
+        if (specialSlider != null)
+        {
+            float n = (float)member.CurrentSpecial / PartyMember.SpecialMax;
+            specialSlider.value = n;
+            if (specialText != null) specialText.text = $"{member.CurrentSpecial}%";
+
+            var spFill = specialSlider.fillRect?.GetComponent<Image>();
+            if (spFill != null)
+                spFill.color = member.CurrentSpecial >= PartyMember.SpecialMax ? specialReadyColor : specialColor;
+        }
     }
 
     /// <summary>Updates the HP bar with tween + damage trail (called after damage/heal).</summary>
@@ -98,6 +147,7 @@ public class BattleHud : MonoBehaviour
         float previous = targetFill;
         targetFill = NormalizedHp(member);
         RefreshHpText(member);
+        UpdateResources(member);   // HP changes often coincide with a Special-gauge charge
 
         bool tookDamage = targetFill < previous - 0.0001f;
 

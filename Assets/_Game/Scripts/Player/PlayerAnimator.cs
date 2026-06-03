@@ -6,13 +6,17 @@ using UnityEngine;
 ///
 /// Required Animator parameters:
 ///   - isMoving        (Bool)
-///   - moveX           (Float)   — horizontal direction (-1 to 1), latched to last-facing
-///   - moveY           (Float)   — forward/back direction (-1 to 1), latched to last-facing
 ///   - idleTrigger     (Trigger) — fired after idleThreshold seconds of standing still
 ///   - interactTrigger (Trigger) — fired by PlayerController on Interact input
 ///
-/// Animator states (see PROGRESS.md 2026-05-29):
-///   Standby (default, 4-dir blend tree on moveX/moveY) ↔ Walking (existing blend tree)
+/// Animation model (see PROGRESS.md 2026-06-02 pt.2, change #2):
+///   ONE left-facing clip per action (Standby, Walking, Idle_1, Interact).
+///   There are NO Up/Down/Right states and NO blend tree — facing right is just
+///   the left clip mirrored via SpriteRenderer.flipX, driven by the last
+///   horizontal input. Pure-vertical movement keeps the current facing.
+///
+/// Animator states:
+///   Standby (default, single clip) ↔ Walking (single clip) on isMoving
 ///   Standby → Idle_1 on idleTrigger
 ///   AnyState → Interact on interactTrigger
 ///   Idle_1 and Interact each have a ResetIdleOnExit StateMachineBehaviour attached.
@@ -29,8 +33,6 @@ public class PlayerAnimator : MonoBehaviour
 
     // Cached parameter hashes (faster than string lookups every frame)
     private static readonly int IsMoving        = Animator.StringToHash("isMoving");
-    private static readonly int MoveX           = Animator.StringToHash("moveX");
-    private static readonly int MoveY           = Animator.StringToHash("moveY");
     private static readonly int IdleTrigger     = Animator.StringToHash("idleTrigger");
     private static readonly int InteractTrigger = Animator.StringToHash("interactTrigger");
 
@@ -62,19 +64,12 @@ public class PlayerAnimator : MonoBehaviour
 
         if (moving)
         {
-            animator.SetFloat(MoveX, moveDir.x);
-            animator.SetFloat(MoveY, moveDir.z); // Z = forward in 3D
-
-            // We only have a Left clip — Right reuses Left but mirrored.
-            // Mirror when the dominant axis is horizontal; un-mirror when
-            // walking vertically so Up/Down clips render correctly.
-            if (spriteRenderer != null)
-            {
-                if (Mathf.Abs(moveDir.x) > Mathf.Abs(moveDir.z))
-                    spriteRenderer.flipX = moveDir.x > 0f;   // right → flip
-                else
-                    spriteRenderer.flipX = false;            // up/down → straight
-            }
+            // Single left-facing clip set. Facing right = the same clip mirrored
+            // via flipX, driven purely by the last horizontal input. Pure-vertical
+            // movement has no horizontal component, so we leave flipX as-is and the
+            // character keeps whichever way it was last facing.
+            if (spriteRenderer != null && Mathf.Abs(moveDir.x) > 0.001f)
+                spriteRenderer.flipX = moveDir.x > 0f;   // moving right → mirror left clip
 
             ResetIdleTimer();
         }

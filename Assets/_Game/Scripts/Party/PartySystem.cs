@@ -110,7 +110,7 @@ public class PartySystem : MonoBehaviour
                     Debug.LogWarning($"[PartySystem] Saved character id '{entry.characterId}' not found in GameDatabase — skipped.");
                     continue;
                 }
-                members.Add(new PartyMember(data, entry.currentHp));
+                members.Add(new PartyMember(data, entry.currentHp, entry.currentMp));
             }
         }
 
