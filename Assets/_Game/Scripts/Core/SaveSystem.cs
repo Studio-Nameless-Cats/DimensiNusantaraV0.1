@@ -14,11 +14,15 @@ using Nusantara.SaveSystem;
 /// </summary>
 public static class SaveSystem
 {
+    public static int  SlotCount                => SaveManager.SlotCount;
     public static bool HasSave(int slot = 0)   => SaveManager.HasSave(slot);
     public static bool Save(int slot = 0)      => SaveManager.Save(slot);
     public static bool Load(int slot = 0)      => SaveManager.Load(slot);
     public static void DeleteSave(int slot = 0) => SaveManager.DeleteSave(slot);
     public static void NewGame()                => SaveManager.NewGame();
+
+    /// <summary>Lightweight slot header for a load/save menu — null if the slot is empty.</summary>
+    public static SaveMetadata GetMetadata(int slot = 0) => SaveManager.GetMetadata(slot);
 
     /// <summary>Legacy no-op kept for compatibility — saving now writes real data via Save().</summary>
     public static void MarkSaveExists() => SaveManager.Save();

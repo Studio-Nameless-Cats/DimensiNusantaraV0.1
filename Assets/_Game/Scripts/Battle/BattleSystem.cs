@@ -653,6 +653,11 @@ public class BattleSystem : MonoBehaviour
         turnIndex = 0;
     }
 
+    // ── Juice ─────────────────────────────────────────────────────────────────
+
+    /// <summary>Fires the optional battle-camera shake. No-op if no CameraShake is wired.</summary>
+    private void ShakeCamera(float magnitude) => cameraShake?.Shake(magnitude);
+
     // ── Public handle (for GameController poll if needed) ─────────────────────
     public void HandleUpdate() { /* Input is handled via UI buttons */ }
 }

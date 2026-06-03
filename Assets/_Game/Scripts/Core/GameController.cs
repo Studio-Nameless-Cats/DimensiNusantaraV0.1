@@ -18,7 +18,7 @@ using UnityEngine.SceneManagement;
 ///   4. Fill in overworldSceneName and battleSceneName to match your scene names exactly.
 ///   5. In Build Settings → add both scenes (Overworld = index 0, Battle = index 1).
 /// </summary>
-public enum GameState { FreeRoam, Battle, Dialog, Cutscene }
+public enum GameState { FreeRoam, Battle, Dialog, Cutscene, Paused }
 
 public class GameController : MonoBehaviour
 {
@@ -29,6 +29,8 @@ public class GameController : MonoBehaviour
     [Tooltip("Must match the scene name exactly (without .unity extension).")]
     [SerializeField] private string overworldSceneName = "Overworld";
     [SerializeField] private string battleSceneName    = "Battle";
+    [Tooltip("Main menu scene name. When this scene loads, the persistent GameController destroys itself so it doesn't linger on the menu.")]
+    [SerializeField] private string mainMenuSceneName  = "MainMenu";
 
     [Header("References")]
     [SerializeField] private Fader fader;
@@ -46,6 +48,32 @@ public class GameController : MonoBehaviour
     /// (OverworldEnemyController) to pause their FSM whenever we're not in FreeRoam.
     /// </summary>
     public GameState State => state;
+
+    /// <summary>True while the game is paused by the in-game menu.</summary>
+    public bool IsPaused => state == GameState.Paused;
+
+    /// <summary>
+    /// Pauses/unpauses gameplay for the in-game menu. Pausing freezes time
+    /// (Time.timeScale = 0) and switches state to <see cref="GameState.Paused"/>,
+    /// which stops player input polling (Update) and overworld enemy AI (they gate
+    /// on State == FreeRoam). Only pauses FROM FreeRoam and only unpauses back to it,
+    /// so it can never clobber a battle/dialog/cutscene state.
+    /// </summary>
+    public void SetPaused(bool paused)
+    {
+        if (paused)
+        {
+            if (state != GameState.FreeRoam) return;
+            state = GameState.Paused;
+            Time.timeScale = 0f;
+        }
+        else
+        {
+            if (state != GameState.Paused) return;
+            state = GameState.FreeRoam;
+            Time.timeScale = 1f;
+        }
+    }
 
     // ── Cross-scene data (static so it survives scene loads) ─────────────────
     // ⚠️ We store List<PartyMember> — NOT PartySystem — because PartySystem is a
@@ -109,6 +137,18 @@ public class GameController : MonoBehaviour
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
         Debug.Log($"[GameController] Scene loaded: '{scene.name}'");
+
+        // Returning to the main menu: this DontDestroyOnLoad singleton must not linger
+        // (the menu scene has no player/battle and a fresh GameController spawns when a
+        // new game/continue loads the Overworld). Reset time and self-destruct.
+        if (!string.IsNullOrEmpty(mainMenuSceneName) && scene.name == mainMenuSceneName)
+        {
+            Time.timeScale = 1f;
+            Instance = null;
+            Destroy(gameObject);
+            return;
+        }
+
         BindCurrentScene();
 
         if (scene.name == battleSceneName)
