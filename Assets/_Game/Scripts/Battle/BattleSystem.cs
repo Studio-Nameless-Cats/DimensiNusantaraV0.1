@@ -128,6 +128,7 @@ public class BattleSystem : MonoBehaviour
             var unit = SpawnUnit(playerSpawnPoints[i]);
             if (unit == null) { Debug.LogError($"[BattleSystem] SpawnUnit() returned null for player slot {i}! ❌ Check your BattleUnit prefab has a BattleUnit component on its root."); continue; }
             healthyMembers[i].ResetSpecial();               // Special gauge starts empty each battle
+            healthyMembers[i].ClearStatuses();              // no buffs/debuffs carry between battles
             unit.Setup(healthyMembers[i], isPlayer: true);  // ← explicitly marked as player
             playerUnits.Add(unit);
         }
@@ -151,21 +152,17 @@ public class BattleSystem : MonoBehaviour
         }
 
         // ── Determine turn order ──────────────────────────────────────────────
-        turnOrder = playerUnits.Concat(enemyUnits)
-                               .OrderByDescending(u => u.Member.Speed)
-                               .ToList();
-        turnIndex = 0;
-
-        Debug.Log($"[BattleSystem] Turn order ({turnOrder.Count} units): {string.Join(" → ", turnOrder.Select(u => u.Member.Name))}");
-
-        // Initialise the Turn Order display bar
-        turnOrderDisplay?.Initialise(turnOrder);
+        // Initiative is rebuilt each round from current effective Speed (so Slow/Haste
+        // statuses change ordering), and the display bar is (re)initialised inside.
+        StartNewRound();
 
         if (turnOrder.Count == 0)
         {
             Debug.LogError("[BattleSystem] Turn order is empty — no units were spawned. Battle cannot start.");
             yield break;
         }
+
+        Debug.Log($"[BattleSystem] Turn order ({turnOrder.Count} units): {string.Join(" → ", turnOrder.Select(u => u.Member.Name))}");
 
         // ── Opening message ───────────────────────────────────────────────────
         string enemyNames = string.Join(", ", enemyUnits.Select(u => u.Member.Name));
@@ -190,37 +187,100 @@ public class BattleSystem : MonoBehaviour
 
     // ── Turn management ───────────────────────────────────────────────────────
 
-    private void StartNextTurn()
+    /// <summary>
+    /// (Re)build the initiative order for a fresh round from every still-standing unit,
+    /// sorted by CURRENT effective Speed — so Slow/Haste statuses applied during the fight
+    /// re-order the queue from the next round. Resets the turn pointer and rebuilds the
+    /// turn-order bar (fainted units drop off naturally since they're filtered out here).
+    /// </summary>
+    private void StartNewRound()
     {
-        // Skip fainted units, wrapping the list
-        int attempts = 0;
-        while (turnOrder[turnIndex].Member.IsFainted)
+        turnOrder = playerUnits.Concat(enemyUnits)
+                               .Where(u => u != null && !u.Member.IsFainted)
+                               .OrderByDescending(u => u.Member.Speed)
+                               .ToList();
+        turnIndex = 0;
+        turnOrderDisplay?.Initialise(turnOrder);
+    }
+
+    /// <summary>Kicks off the current unit's turn (entry point used everywhere a turn ends).</summary>
+    private void StartNextTurn() => StartCoroutine(RunTurn());
+
+    /// <summary>
+    /// Drives one unit's turn: rolls a new round when the queue is exhausted, skips
+    /// units that fainted mid-round, resolves start-of-turn statuses (DoT/regen + stun),
+    /// then hands off to the player command menu or the enemy AI.
+    /// </summary>
+    private IEnumerator RunTurn()
+    {
+        // End of the queue → start a fresh round (re-sorted by current Speed).
+        if (turnIndex >= turnOrder.Count)
+            StartNewRound();
+
+        // Skip units that fainted earlier this round (still in the list for display alignment).
+        int guard = 0;
+        while (turnIndex < turnOrder.Count && turnOrder[turnIndex].Member.IsFainted)
         {
-            AdvanceTurnIndex();
-            if (++attempts > turnOrder.Count) { EndBattle(false); return; } // safety
+            turnIndex++;
+            if (turnIndex >= turnOrder.Count) StartNewRound();
+            if (++guard > 200) { EndBattle(false); yield break; }   // safety net
         }
+
+        if (turnOrder.Count == 0) { EndBattle(false); yield break; }
 
         var current = turnOrder[turnIndex];
 
-        // Update the Turn Order bar to highlight whoever is acting now
+        // Highlight whoever is acting now.
         turnOrderDisplay?.UpdateCurrentTurn(turnIndex);
+
+        // ── Start-of-turn status resolution ────────────────────────────────────
+        if (current.Member.HasStatuses)
+        {
+            var report = current.Member.ProcessTurnStart();
+            current.RefreshStatusIcons();
+
+            // Per-turn HP ticks (poison/burn damage, regen heal).
+            foreach (var tick in report.Ticks)
+            {
+                current.UpdateHud();
+                if (tick.HpDelta < 0)
+                    yield return dialogBox.TypeDialog($"{current.Member.Name} terkena {tick.Data.Name} — {-tick.HpDelta} damage!");
+                else
+                    yield return dialogBox.TypeDialog($"{current.Member.Name} pulih {tick.HpDelta} HP dari {tick.Data.Name}.");
+                yield return new WaitForSeconds(0.4f);
+            }
+
+            // A DoT may have downed the unit — resolve faint + win/lose, then move on.
+            if (current.Member.IsFainted)
+            {
+                yield return ResolveAfterAction();
+                yield break;
+            }
+
+            // Stun: the unit loses its action this turn (duration already counted down).
+            if (report.WasStunned)
+            {
+                yield return dialogBox.TypeDialog($"{current.Member.Name} tertegun dan tidak bisa bergerak!");
+                yield return new WaitForSeconds(0.6f);
+                AdvanceTurnIndex();
+                StartNextTurn();
+                yield break;
+            }
+        }
 
         if (current.IsPlayerUnit)
         {
             state = BattleState.PlayerAction;
-            StartCoroutine(ShowPlayerActions(current));
+            yield return ShowPlayerActions(current);
         }
         else
         {
             state = BattleState.EnemyAttack;
-            StartCoroutine(EnemyTurn(current));
+            yield return EnemyTurn(current);
         }
     }
 
-    private void AdvanceTurnIndex()
-    {
-        turnIndex = (turnIndex + 1) % turnOrder.Count;
-    }
+    private void AdvanceTurnIndex() => turnIndex++;
 
     // ── Player action ─────────────────────────────────────────────────────────
 
@@ -299,9 +359,10 @@ public class BattleSystem : MonoBehaviour
         CloseActionMenu();
         state = BattleState.Busy;
 
+        // Read the loadout-aware lists: equipped normal skills, fixed special skills.
         var list = category == SkillCategory.Special
-            ? user.Member.Base.SpecialSkills
-            : user.Member.Base.Skills;
+            ? user.Member.SpecialSkills
+            : user.Member.Skills;
 
         skillPanel.Show(list, user.Member, category, chosen =>
         {
@@ -400,8 +461,9 @@ public class BattleSystem : MonoBehaviour
                 yield return dialogBox.TypeDialog(
                     $"{user.Member.Name} menggunakan {skill.Name} — {dmg} damage ke {t.Member.Name}!");
             }
+            if (skill.AppliesStatus) yield return ApplyStatusToTargets(skill, targets);   // rider
         }
-        else // Heal
+        else if (skill.EffectType == SkillEffectType.Heal)
         {
             foreach (var t in targets)
             {
@@ -410,10 +472,37 @@ public class BattleSystem : MonoBehaviour
                 yield return dialogBox.TypeDialog(
                     $"{user.Member.Name} menggunakan {skill.Name} — memulihkan {skill.HealAmount} HP {t.Member.Name}!");
             }
+            if (skill.AppliesStatus) yield return ApplyStatusToTargets(skill, targets);   // rider
+        }
+        else // ApplyStatus — the status IS the effect
+        {
+            yield return dialogBox.TypeDialog($"{user.Member.Name} menggunakan {skill.Name}!");
+            yield return ApplyStatusToTargets(skill, targets);
         }
 
         // Resolve faints for any damaged enemies, then continue the turn cycle.
         yield return ResolveAfterAction();
+    }
+
+    /// <summary>Applies a skill's status effect to each living target and announces it.</summary>
+    private IEnumerator ApplyStatusToTargets(SkillData skill, List<BattleUnit> targets)
+    {
+        var status = skill.StatusEffect;
+        if (status == null) yield break;
+
+        foreach (var t in targets)
+        {
+            if (t.Member.IsFainted) continue;
+
+            bool added = t.Member.ApplyStatus(status);
+            t.RefreshStatusIcons();
+            t.UpdateHud();   // refresh in case a buff/debuff is reflected on the HUD
+
+            yield return dialogBox.TypeDialog(added
+                ? $"{t.Member.Name} terkena efek {status.Name}!"
+                : $"Efek {status.Name} pada {t.Member.Name} diperbarui!");
+            yield return new WaitForSeconds(0.3f);
+        }
     }
 
     /// <summary>Shared post-action win/lose + turn advance (used by skills, which can
@@ -433,7 +522,7 @@ public class BattleSystem : MonoBehaviour
         bool playerWon  = !enemyUnits.Any(u => !u.Member.IsFainted);
         bool playerLost = !playerUnits.Any(u => !u.Member.IsFainted);
 
-        if (playerWon)  { yield return dialogBox.TypeDialog("Kamu menang dalam pertarungan!"); yield return new WaitForSeconds(1f); EndBattle(true);  yield break; }
+        if (playerWon)  { yield return dialogBox.TypeDialog("Kamu menang dalam pertarungan!"); yield return new WaitForSeconds(1f); yield return AwardBattleExp(); EndBattle(true);  yield break; }
         if (playerLost) { yield return dialogBox.TypeDialog("Party kamu dikalahkan...");        yield return new WaitForSeconds(1f); EndBattle(false); yield break; }
 
         AdvanceTurnIndex();
@@ -592,6 +681,7 @@ public class BattleSystem : MonoBehaviour
             {
                 yield return dialogBox.TypeDialog("Kamu menang dalam pertarungan!");
                 yield return new WaitForSeconds(1f);
+                yield return AwardBattleExp();
                 EndBattle(true);
                 yield break;
             }
@@ -630,6 +720,39 @@ public class BattleSystem : MonoBehaviour
             yield return dialogBox.TypeDialog("Tidak bisa melarikan diri!");
             AdvanceTurnIndex();
             StartNextTurn();
+        }
+    }
+
+    // ── Experience reward ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// On a win, sums each defeated enemy's <see cref="CharacterData.ExpReward"/> and
+    /// grants the full amount to every SURVIVING player member (fainted members earn
+    /// nothing). Members are the live PartyMember instances (they persist across the
+    /// scene reload), so the EXP + any level-ups stick and get saved. Announces the
+    /// EXP gain and any level-ups in the dialog box.
+    /// </summary>
+    private IEnumerator AwardBattleExp()
+    {
+        int totalExp = enemyUnits.Sum(u => u.Member?.Base != null ? u.Member.Base.ExpReward : 0);
+        if (totalExp <= 0) yield break;
+
+        var recipients = playerUnits.Where(u => u.Member != null && !u.Member.IsFainted)
+                                    .Select(u => u.Member)
+                                    .ToList();
+        if (recipients.Count == 0) yield break;
+
+        yield return dialogBox.TypeDialog($"Party memperoleh {totalExp} EXP!");
+        yield return new WaitForSeconds(0.6f);
+
+        foreach (var m in recipients)
+        {
+            var levelsGained = m.AddExp(totalExp);
+            foreach (int newLevel in levelsGained)
+            {
+                yield return dialogBox.TypeDialog($"{m.Name} naik ke Level {newLevel}!");
+                yield return new WaitForSeconds(0.6f);
+            }
         }
     }
 

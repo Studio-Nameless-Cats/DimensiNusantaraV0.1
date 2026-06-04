@@ -259,7 +259,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BattleUnit
   hud: {fileID: 1210616117947622832}
-  spriteRenderer: {fileID: 0}
+  spriteRenderer: {fileID: 9040770642545637923}
+  hudGap: 0.25
+  continuousHudAlign: 0
 --- !u!1 &4676494389755905120
 GameObject:
   m_ObjectHideFlags: 0
@@ -527,7 +529,7 @@ Transform:
   m_GameObject: {fileID: 5598624863865602347}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: -1, z: 0}
   m_LocalScale: {x: 0.5, y: 0.5, z: 0.5}
   m_ConstrainProportionsScale: 1
   m_Children: []
@@ -591,7 +593,7 @@ SpriteRenderer:
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
-  m_SpriteSortPoint: 0
+  m_SpriteSortPoint: 1
 --- !u!95 &4955317797408946439
 Animator:
   serializedVersion: 7
@@ -871,6 +873,13 @@ MonoBehaviour:
   nameText: {fileID: 149144332306934978}
   hpSlider: {fileID: 684072911257315259}
   hpText: {fileID: 1549683987447679720}
+  mpSlider: {fileID: 0}
+  mpText: {fileID: 0}
+  mpColor: {r: 0.3, g: 0.55, b: 0.95, a: 1}
+  specialSlider: {fileID: 0}
+  specialText: {fileID: 0}
+  specialColor: {r: 0.95, g: 0.75, b: 0.2, a: 1}
+  specialReadyColor: {r: 1, g: 0.45, b: 0.15, a: 1}
   damageTrailSlider: {fileID: 0}
   frame: {fileID: 0}
   animSpeed: 1.5

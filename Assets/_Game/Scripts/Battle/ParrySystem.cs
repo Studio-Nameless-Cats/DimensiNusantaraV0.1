@@ -30,6 +30,8 @@ public class ParrySystem : MonoBehaviour
     [Header("Header UI")]
     [SerializeField] private TextMeshProUGUI attackIndicatorText; // "⚠ Enemy menyerang Target!"
     [SerializeField] private TextMeshProUGUI hintText;            // "Tap semua lingkaran!"
+    [Tooltip("Optional timer bar (Slider, 0..1). Refills per circle and drains over its tap window. Leave null to disable.")]
+    [SerializeField] private Slider          timerBar;
 
     [Header("Buttons")]
     [Tooltip("Prefab with Button + Image + ApproachRing child + ParryButton script.")]
@@ -110,7 +112,7 @@ public class ParrySystem : MonoBehaviour
             var btn = pooledButtons[i];
             PlaceRandomly(btn.GetComponent<RectTransform>());
 
-            yield return StartCoroutine(btn.Activate(buttonWindow));
+            yield return StartCoroutine(btn.Activate(buttonWindow, timerBar));
 
             if (btn.Result == ParryTier.Miss)
             {
@@ -135,7 +137,7 @@ public class ParrySystem : MonoBehaviour
         {
             hintText.text  = grade == ParryTier.Perfect ? "Sempurna!" : "Bagus!";
             hintText.color = grade == ParryTier.Perfect
-                ? new Color(1.00f, 0.84f, 0.30f)   // gold
+                ? new Color(22f/255f, 17f/255f, 12f/255f)   // blackish for Perfect
                 : new Color(0.30f, 0.85f, 0.40f);  // green
         }
 

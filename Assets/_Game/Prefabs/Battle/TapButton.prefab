@@ -58,7 +58,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.95686275, g: 0.7058824, b: 0, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -144,15 +144,15 @@ MonoBehaviour:
 
 '
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: c2e032360a2b1f7458e85fdd0fd40328, type: 2}
-  m_sharedMaterial: {fileID: 1480647209766903878, guid: c2e032360a2b1f7458e85fdd0fd40328, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: e773ca8e1a50b0c489c5c05036b42b66, type: 2}
+  m_sharedMaterial: {fileID: 6817535677098824026, guid: e773ca8e1a50b0c489c5c05036b42b66, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
-  m_fontColor: {r: 1, g: 1, b: 1, a: 1}
+    rgba: 4278236404
+  m_fontColor: {r: 0.95686275, g: 0.7058824, b: 0, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -357,7 +357,7 @@ MonoBehaviour:
   perfectThreshold: 14
   goodThreshold: 38
   normalColor: {r: 0.2, g: 0.6, b: 1, a: 1}
-  perfectColor: {r: 1, g: 0.84, b: 0.3, a: 1}
+  perfectColor: {r: 0.08627451, g: 0.06666667, b: 0.047058824, a: 1}
   goodColor: {r: 0.3, g: 0.85, b: 0.4, a: 1}
   missColor: {r: 0.9, g: 0.25, b: 0.2, a: 1}
   feedbackDuration: 0.25

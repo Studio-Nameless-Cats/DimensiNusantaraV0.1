@@ -321,8 +321,12 @@ public class GameController : MonoBehaviour
         state = GameState.Battle;
 
         pendingEncounter    = encounterData;
-        // Copy the member list NOW — before the scene unloads and destroys the Player
-        pendingPartyMembers = player.Party.HealthyMembers;
+        // Copy the member list NOW — before the scene unloads and destroys the Player.
+        // Only ACTIVE + healthy members fight (battle-selection); fall back to all
+        // healthy members if the player somehow deactivated everyone.
+        pendingPartyMembers = player.Party.ActiveHealthyBattleMembers;
+        if (pendingPartyMembers.Count == 0)
+            pendingPartyMembers = player.Party.HealthyMembers;
 
         // Remember where the player is standing so we can put them back here after the
         // battle instead of the Overworld's default spawn point.

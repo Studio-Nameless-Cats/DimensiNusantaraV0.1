@@ -17,12 +17,24 @@ public class CharacterData : ScriptableObject
     [SerializeField] private string characterName;
     [SerializeField] private Sprite icon;
 
-    [Header("Base Stats")]
+    [Header("Base Stats (values at Level 1)")]
     [SerializeField] private int maxHp = 50;
     [SerializeField] private int maxMp = 20;
     [SerializeField] private int attack = 10;
     [SerializeField] private int defense = 5;
     [SerializeField] private int speed = 10;
+
+    [Header("Level & Growth")]
+    [Tooltip("Level this character starts at (1 = brand new). Enemies normally stay at 1.")]
+    [SerializeField] private int startingLevel = 1;
+    [Tooltip("EXP this character GRANTS to the party when defeated as an enemy. Ignored for player characters.")]
+    [SerializeField] private int expReward = 15;
+    [Tooltip("Stat points added PER LEVEL gained (Level 1 = the base stats above; each level adds these).")]
+    [SerializeField] private int hpGrowth = 8;
+    [SerializeField] private int mpGrowth = 3;
+    [SerializeField] private int attackGrowth = 2;
+    [SerializeField] private int defenseGrowth = 1;
+    [SerializeField] private int speedGrowth = 1;
 
     [Header("Skills")]
     [Tooltip("Normal skills (cost MP) — shown under the SKILL command button.")]
@@ -48,6 +60,13 @@ public class CharacterData : ScriptableObject
     public int Attack                                   => attack;
     public int Defense                                  => defense;
     public int Speed                                    => speed;
+    public int StartingLevel                            => Mathf.Max(1, startingLevel);
+    public int ExpReward                                => Mathf.Max(0, expReward);
+    public int HpGrowth                                 => Mathf.Max(0, hpGrowth);
+    public int MpGrowth                                 => Mathf.Max(0, mpGrowth);
+    public int AttackGrowth                             => Mathf.Max(0, attackGrowth);
+    public int DefenseGrowth                            => Mathf.Max(0, defenseGrowth);
+    public int SpeedGrowth                              => Mathf.Max(0, speedGrowth);
     public RuntimeAnimatorController OverworldAnimator  => overworldAnimator;
     public RuntimeAnimatorController BattleAnimator     => battleAnimator;
     public Sprite BattleSprite                          => battleSprite;

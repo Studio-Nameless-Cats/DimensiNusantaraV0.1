@@ -54,6 +54,12 @@ public class BattleHud : MonoBehaviour
     [Tooltip("Fill colour once the Special gauge is full (ready to unleash).")]
     [SerializeField] private Color           specialReadyColor = new Color(1f, 0.45f, 0.15f, 1f);
 
+    [Header("Status effects (optional)")]
+    [Tooltip("Parent (with a Horizontal Layout Group) that holds the status badges. Leave null to disable the status display.")]
+    [SerializeField] private Transform  statusIconContainer;
+    [Tooltip("Prefab with a StatusIcon component (icon + duration text). Pooled under the container.")]
+    [SerializeField] private GameObject statusIconPrefab;
+
     [Tooltip("Optional chip/lag bar stacked behind the main fill. Leave null to disable the trail effect.")]
     [SerializeField] private Slider damageTrailSlider;
 
@@ -85,6 +91,7 @@ public class BattleHud : MonoBehaviour
     private Coroutine trailCoroutine;
     private Coroutine punchCoroutine;
     private Vector3   frameBaseScale = Vector3.one;
+    private readonly System.Collections.Generic.List<StatusIcon> statusIconPool = new System.Collections.Generic.List<StatusIcon>();
 
     void Awake()
     {
@@ -114,6 +121,40 @@ public class BattleHud : MonoBehaviour
         RefreshHpText(member);
 
         UpdateResources(member);
+        ShowStatuses(member.Statuses);   // clears any leftover badges (empty at battle start)
+    }
+
+    /// <summary>
+    /// Refreshes the status-effect badges from the member's active statuses. Pools one
+    /// <see cref="StatusIcon"/> per status and hides the rest. No-ops if the optional
+    /// container/prefab aren't wired (e.g. enemy HUDs that don't show statuses).
+    /// </summary>
+    public void ShowStatuses(System.Collections.Generic.IReadOnlyList<StatusEffectInstance> statuses)
+    {
+        if (statusIconContainer == null || statusIconPrefab == null) return;
+
+        int count = statuses != null ? statuses.Count : 0;
+
+        // Grow the pool to cover the active statuses.
+        while (statusIconPool.Count < count)
+        {
+            var go  = Instantiate(statusIconPrefab, statusIconContainer);
+            var ico = go.GetComponent<StatusIcon>();
+            if (ico == null)
+            {
+                Debug.LogError("[BattleHud] statusIconPrefab has no StatusIcon component! ❌");
+                Destroy(go);
+                break;
+            }
+            statusIconPool.Add(ico);
+        }
+
+        // Paint / hide.
+        for (int i = 0; i < statusIconPool.Count; i++)
+        {
+            if (i < count) statusIconPool[i].Set(statuses[i]);
+            else           statusIconPool[i].gameObject.SetActive(false);
+        }
     }
 
     /// <summary>

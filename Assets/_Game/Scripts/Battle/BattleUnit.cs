@@ -22,6 +22,15 @@ public class BattleUnit : MonoBehaviour
     [Tooltip("Sprite for this unit's model. Auto-found in children if empty. Flipped so friendly units face right, enemies face left.")]
     [SerializeField] private SpriteRenderer spriteRenderer;
 
+    [Header("HUD Positioning")]
+    [Tooltip("World-space gap between the TOP of the sprite and the HUD. Increase to push the name/HP bar higher above the head.")]
+    [SerializeField] private float hudGap = 0.25f;
+    [Tooltip("If ON, the HUD re-aligns every frame (follows the sprite as the animation bobs). If OFF, it aligns once after spawn — usually what you want.")]
+    [SerializeField] private bool continuousHudAlign = false;
+
+    // True once the HUD has been parked above the sprite (used when continuousHudAlign is OFF).
+    private bool hudAligned;
+
     // ── Animator parameter hashes ─────────────────────────────────────────────
     private static readonly int AttackHash = Animator.StringToHash("Attack");
     private static readonly int HitHash    = Animator.StringToHash("Hit");
@@ -50,6 +59,29 @@ public class BattleUnit : MonoBehaviour
 
         if (hud == null)
             Debug.LogWarning($"[BattleUnit] BattleHud is NOT assigned on '{gameObject.name}'. HP bar will not display. Assign the BattleHud reference in the prefab Inspector.");
+    }
+
+    // The animator assigns the real sprite a frame after Setup(), so the sprite's
+    // true bounds (which depend on its Pixels-Per-Unit) aren't known until LateUpdate.
+    // Park the HUD just above the sprite's top edge here, where bounds are valid.
+    void LateUpdate()
+    {
+        if (continuousHudAlign)      AlignHudToSpriteTop();
+        else if (!hudAligned)      { AlignHudToSpriteTop(); hudAligned = true; }
+    }
+
+    /// <summary>
+    /// Moves the world-space HUD so it sits a fixed gap above the TOP of the sprite,
+    /// regardless of the sprite's size / Pixels-Per-Unit. Only the Y is changed —
+    /// the HUD keeps its horizontal offset.
+    /// </summary>
+    private void AlignHudToSpriteTop()
+    {
+        if (hud == null || spriteRenderer == null || spriteRenderer.sprite == null) return;
+
+        Vector3 pos = hud.transform.position;
+        pos.y = spriteRenderer.bounds.max.y + hudGap;
+        hud.transform.position = pos;
     }
 
     // ── Setup ─────────────────────────────────────────────────────────────────
@@ -109,6 +141,9 @@ public class BattleUnit : MonoBehaviour
     /// <summary>Refreshes only the MP bar + Special gauge (e.g. after charging the
     /// Special on a basic attack, or spending MP on a skill — no HP change).</summary>
     public void RefreshResources() => hud?.UpdateResources(member);
+
+    /// <summary>Refreshes the status-effect badges after a status is applied or expires.</summary>
+    public void RefreshStatusIcons() => hud?.ShowStatuses(member.Statuses);
 
     // ── Visibility ──────────────────────────────────────────────────────────────
 

@@ -94,9 +94,9 @@ Folder layout inside `Assets/_Game/Scripts/`:
 - `Core/Save/` — `SaveData`, `SaveManager`, `ISaveParticipant`; facade `Core/SaveSystem`
 - `World/` — `NPCController`, `EncounterTrigger`, `RestPoint` (Phase A), `BoneMarker` (Phase A)
 - `World/AI/` — `OverworldEnemyController`, `EnemyPerception`, `AlertBubble`, `VisionConeRenderer`, `LockWorldRotation`, `DefeatedEnemyRegistry`, `States/*`
-- `Data/` — `CharacterData` (now + MaxMp, Skills/SpecialSkills lists), `SkillData`, `EnemyEncounterData`, `EnemyAIData`, `WorldMarkerData`, `GameDatabase` (ScriptableObjects)
+- `Data/` — `CharacterData` (+ MaxMp, Skills/SpecialSkills lists, **Level & Growth**: startingLevel/expReward/per-stat growth), `SkillData` (+ `unlockLevel`), `LevelCurve` (static EXP curve), `EnemyEncounterData`, `EnemyAIData`, `WorldMarkerData`, `GameDatabase` (ScriptableObjects)
 
-Resources: party members have **MP** (persists, restored on rest — NOT yet in SaveData) and a per-battle **Special gauge** (0..100, resets each battle, fills via attacks/taking hits). Skills cost MP; special skills cost the gauge. No MP/Special HUD meters yet.
+Resources: party members have **MP** (persists in SaveData, restored on rest) and a per-battle **Special gauge** (0..100, resets each battle, fills via attacks/taking hits). Skills cost MP; special skills cost the gauge. **Level/EXP:** members have a level + EXP (persisted, save v4); winning a battle awards EXP (sum of defeated enemies' `expReward`) to survivors → level-up grows stats (`base + growth·(level-1)`) and unlocks skills (`level >= SkillData.unlockLevel`). EXP curve in `LevelCurve.cs`. EXP bar shows in the Character menu tab; no MP/Special/EXP meters in the battle HUD yet.
 
 ---
 

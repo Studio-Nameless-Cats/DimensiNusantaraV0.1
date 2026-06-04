@@ -85,8 +85,10 @@ public class ParryButton : MonoBehaviour
     /// Runs the full lifecycle of one parry circle:
     ///   show → ring shrinks over 'duration' → tier feedback → hide.
     /// Await this coroutine; read <see cref="Result"/> afterward.
+    /// Pass an optional <paramref name="timerBar"/> (0..1) to mirror the tap window:
+    /// it starts full and drains to 0 over 'duration', stopping early on a tap.
     /// </summary>
-    public IEnumerator Activate(float duration)
+    public IEnumerator Activate(float duration, Slider timerBar = null)
     {
         // ── Reset ─────────────────────────────────────────────────────────────
         Result          = ParryTier.Miss;
@@ -94,6 +96,12 @@ public class ParryButton : MonoBehaviour
         currentRingSize = approachRingStartSize;
 
         if (buttonImage) buttonImage.color = normalColor;
+        if (timerBar)
+        {
+            timerBar.minValue = 0f;
+            timerBar.maxValue = 1f;
+            timerBar.value    = 1f;
+        }
 
         if (approachRing)
         {
@@ -119,10 +127,13 @@ public class ParryButton : MonoBehaviour
             if (approachRing)
                 approachRing.sizeDelta = new Vector2(currentRingSize, currentRingSize);
 
+            if (timerBar) timerBar.value = 1f - t;   // drains full → empty over the window
+
             yield return null;
         }
 
         windowOpen = false;
+        if (timerBar) timerBar.value = 0f;            // snap empty when the window closes (tap or timeout)
 
         // ── Feedback (tier colour) ──────────────────────────────────────────────
         if (buttonImage)

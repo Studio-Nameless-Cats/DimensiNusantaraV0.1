@@ -12,12 +12,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5b808b1d05a5ce440a4de02ec4a71b2c, type: 3}
   m_Name: Ucapan_Sakral
   m_EditorClassIdentifier: Assembly-CSharp::SkillData
-  skillName: Keris Emas
+  id: cead654ce54d43949da3e6817eb99d12
+  skillName: Ucapan Sakral
   icon: {fileID: 21300000, guid: 098c57b8820224a4e85f6da8be3bdd76, type: 3}
   description: Melempar bola api
   category: 0
   cost: 5
+  unlockLevel: 1
   effectType: 1
   target: 4
   damageMultiplier: 1.5
   healAmount: 20
+  statusEffect: {fileID: 0}

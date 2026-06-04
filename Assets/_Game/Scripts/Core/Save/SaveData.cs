@@ -17,7 +17,7 @@ namespace Nusantara.SaveSystem
     public class SaveData
     {
         /// <summary>Bump this whenever SaveData's shape changes; add a migration in SaveManager.</summary>
-        public const int CurrentVersion = 2;   // v2: added PartyMemberSaveData.currentMp
+        public const int CurrentVersion = 4;   // v4: added level + currentExp per member
 
         public int saveVersion = CurrentVersion;
 
@@ -69,7 +69,21 @@ namespace Nusantara.SaveSystem
         public string characterId;  // CharacterData.Id — resolved via GameDatabase on load
         public int    currentHp;
         public int    currentMp = -1;   // -1 = "unset" → restore to full MP (v1 saves migrate to this)
-        // Future: level, exp, equipment ids, learned skill ids — add fields here.
+
+        // v3: loadout + battle selection.
+        // equippedSkillIds = SkillData.Id of the equipped NORMAL skills (resolved against
+        // the character's own pool on load). null/empty → restore the default loadout.
+        public List<string> equippedSkillIds = new List<string>();
+        // Whether this member fights (vs sits in reserve). Defaults true so legacy
+        // saves with no value (and freshly built parties) treat everyone as active.
+        public bool isActive = true;
+
+        // v4: progression. level = 0 means "unset" → restore falls back to the
+        // character's StartingLevel (so legacy saves keep their starting level).
+        public int level = 0;
+        public int currentExp = 0;
+
+        // Future: equipment ids, learned skill ids — add fields here.
     }
 
     [Serializable]

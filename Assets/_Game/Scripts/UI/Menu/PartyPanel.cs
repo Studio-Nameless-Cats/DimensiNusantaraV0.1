@@ -5,28 +5,28 @@ using UnityEngine;
 namespace Nusantara.UI
 {
     /// <summary>
-    /// Party tab. Shows the current party roster (portrait + name + HP). This is the
-    /// home for the future "pick who to bring into battle" selection.
+    /// Party tab. Shows the current roster and lets the player pick who fights:
+    /// tap a member to toggle ACTIVE (sent into battle) vs RESERVE. Selection is
+    /// capped at <see cref="PartySystem.MaxActiveBattle"/> and at least one member
+    /// must stay active — both enforced by <see cref="PartySystem.SetActive"/>.
     ///
-    /// v1 is READ-ONLY. Battle currently spawns every healthy member up to the number
-    /// of player spawn points (see BattleSystem.SetupBattle), so there's no active-vs-
-    /// reserve distinction to edit yet. Adding selection means: an "active party"
-    /// flag/list on PartySystem, persisting it in SaveData, and having the battle read
-    /// the active list instead of HealthyMembers. The <see cref="hint"/> label marks this.
+    /// The active state shows via each row's "selected" highlight + sub-label. Battle
+    /// reads <see cref="PartySystem.ActiveHealthyBattleMembers"/> (see GameController),
+    /// and the choice persists through the save system.
     ///
     /// ── Unity setup ──────────────────────────────────────────────────────────
     ///   PartyPanel (this component)
     ///     ├ RosterContainer (Grid/Vertical Layout)  → rosterContainer
-    ///     │    (MemberListButton prefab pooled here)
+    ///     │    (MemberListButton prefab pooled here — its SelectedHighlight = "active" marker)
     ///     ├ EmptyText (TMP, optional)               → emptyText
-    ///     └ Hint (TMP, optional)                    → hint
+    ///     └ Hint (TMP, optional)                    → hint  (shows "Bertarung: X/N" + tip)
     /// </summary>
     public class PartyPanel : MonoBehaviour
     {
         [SerializeField] private Transform        rosterContainer;
         [SerializeField] private MemberListButton memberButtonPrefab;
         [SerializeField] private TextMeshProUGUI  emptyText;
-        [Tooltip("Optional note that battle-selection is coming. Leave null to hide.")]
+        [Tooltip("Optional active-count + tip label. Leave null to hide.")]
         [SerializeField] private TextMeshProUGUI  hint;
 
         private readonly List<MemberListButton> _rows = new List<MemberListButton>();
@@ -43,7 +43,8 @@ namespace Nusantara.UI
             if (hint != null)
             {
                 hint.gameObject.SetActive(any);
-                hint.text = "Semua anggota sehat ikut bertarung. Pemilihan party akan hadir nanti.";
+                if (party != null)
+                    hint.text = $"Bertarung: {party.ActiveCount}/{party.MaxActiveBattle}  —  ketuk untuk pilih.";
             }
 
             if (memberButtonPrefab == null || rosterContainer == null) return;
@@ -57,14 +58,26 @@ namespace Nusantara.UI
                 {
                     var m = members[i];
                     _rows[i].gameObject.SetActive(true);
-                    string status = m.IsFainted ? "<color=#C04040>Pingsan</color>" : $"HP {m.CurrentHp}/{m.MaxHp}";
-                    _rows[i].Bind(m, onClick: null, sub: status);
+
+                    string hp     = m.IsFainted ? "<color=#C04040>Pingsan</color>" : $"HP {m.CurrentHp}/{m.MaxHp}";
+                    string tag    = m.IsActiveInBattle ? "<color=#E23A1E>Bertarung</color>" : "<color=#999999>Cadangan</color>";
+                    string status = $"{tag}  ·  {hp}";
+
+                    _rows[i].Bind(m, onClick: () => OnToggleMember(party, m), sub: status);
+                    _rows[i].SetSelected(m.IsActiveInBattle);
                 }
                 else
                 {
                     _rows[i].gameObject.SetActive(false);
                 }
             }
+        }
+
+        private void OnToggleMember(PartySystem party, PartyMember m)
+        {
+            if (party == null) return;
+            party.ToggleActive(m);   // enforces cap + at-least-one
+            Refresh();               // reflect new state (and any rejected toggle)
         }
     }
 }

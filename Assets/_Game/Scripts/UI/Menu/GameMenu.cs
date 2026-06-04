@@ -37,6 +37,7 @@ namespace Nusantara.UI
             public string     name;
             public Button     button;
             public GameObject panel;
+            public GameObject SelectedOverlay;
         }
 
         [Header("Open / close")]
@@ -175,6 +176,7 @@ namespace Nusantara.UI
 
                 if (tabs[i].button != null && tabs[i].button.targetGraphic != null)
                     tabs[i].button.targetGraphic.color = active ? activeTabColor : inactiveTabColor;
+                    tabs[i].SelectedOverlay?.SetActive(active); // change active tab button's SelectedOverlay active or not
             }
         }
     }

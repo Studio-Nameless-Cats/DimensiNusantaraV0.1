@@ -20,10 +20,19 @@ MonoBehaviour:
   attack: 10
   defense: 5
   speed: 10
+  startingLevel: 1
+  expReward: 15
+  hpGrowth: 8
+  mpGrowth: 3
+  attackGrowth: 2
+  defenseGrowth: 1
+  speedGrowth: 1
   skills:
   - {fileID: 11400000, guid: d061fb82a756e7749b7802066442b0d9, type: 2}
   - {fileID: 11400000, guid: cb419ad5d21df004288b1200e0a88ebd, type: 2}
   - {fileID: 11400000, guid: 24c444d4ace97df46bee2420c46e9f72, type: 2}
+  - {fileID: 11400000, guid: dddf3cb78a7a3f246b4d1a1160a8d972, type: 2}
+  - {fileID: 11400000, guid: fed208ebb8251044ab4f720daec548f6, type: 2}
   specialSkills:
   - {fileID: 11400000, guid: ab469eca76f1f3e4ca9ba0f2480ca961, type: 2}
   overworldAnimator: {fileID: 22100000, guid: 1da810c654b63d045992ec97416dc0a3, type: 2}

@@ -214,7 +214,16 @@ namespace Nusantara.SaveSystem
                                          "Add it to the GameDatabase / assign an id.");
                         continue;
                     }
-                    data.party.members.Add(new PartyMemberSaveData { characterId = id, currentHp = m.CurrentHp, currentMp = m.CurrentMp });
+                    data.party.members.Add(new PartyMemberSaveData
+                    {
+                        characterId      = id,
+                        currentHp        = m.CurrentHp,
+                        currentMp        = m.CurrentMp,
+                        equippedSkillIds = m.GetEquippedIds(),
+                        isActive         = m.IsActiveInBattle,
+                        level            = m.Level,
+                        currentExp       = m.CurrentExp
+                    });
                 }
             }
 
@@ -275,6 +284,34 @@ namespace Nusantara.SaveSystem
                     foreach (var m in data.party.members)
                         m.currentMp = -1;
                 data.saveVersion = 2;
+            }
+
+            // v2 → v3: members gained equippedSkillIds + isActive. Legacy members have
+            // neither — leave equippedSkillIds empty (→ default loadout) and force
+            // isActive true so the whole party fights (old behavior was "all healthy").
+            if (data.saveVersion < 3)
+            {
+                if (data.party?.members != null)
+                    foreach (var m in data.party.members)
+                    {
+                        if (m.equippedSkillIds == null) m.equippedSkillIds = new System.Collections.Generic.List<string>();
+                        m.isActive = true;
+                    }
+                data.saveVersion = 3;
+            }
+
+            // v3 → v4: members gained level + currentExp. Legacy members have neither —
+            // leave level = 0 (→ PartyMember restore falls back to StartingLevel) and
+            // currentExp = 0 so old saves load at their characters' starting level.
+            if (data.saveVersion < 4)
+            {
+                if (data.party?.members != null)
+                    foreach (var m in data.party.members)
+                    {
+                        m.level      = 0;
+                        m.currentExp = 0;
+                    }
+                data.saveVersion = 4;
             }
 
             data.saveVersion = SaveData.CurrentVersion;
