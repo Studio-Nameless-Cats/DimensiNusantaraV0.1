@@ -1,19 +1,17 @@
 using UnityEngine;
 
-/// <summary>
-/// ScriptableObject holding the prefab references for *world markers* — visual
-/// objects spawned in the overworld in response to gameplay state (e.g. bone /
-/// scorch markers at defeated-enemy positions).
-///
-/// Why an SO and not a direct prefab field on GameController:
-///   - Per-region swap. A jungle region can use bones; a volcano region can
-///     use scorch marks. Just swap the SO on the GameController.
-///   - Designer authorability. No code changes when the prefab changes.
-///   - Future-proof. New marker types (quest pins, lore spots, treasure flags)
-///     plug in here without bloating GameController's Inspector.
-///
-/// Create via: Right-click in Project → RPG → World Marker Data
-/// </summary>
+// A ScriptableObject holding the prefab references for "world markers": little visual
+// things we spawn in the overworld based on game state (like bone or scorch markers where
+// you beat an enemy).
+//
+// Why an SO instead of just a prefab field on GameController:
+//   - You can swap per region. A jungle area uses bones, a volcano area uses scorch
+//     marks; just swap the SO on the GameController.
+//   - Designers can change it. No code edits when the prefab changes.
+//   - Room to grow. New marker types (quest pins, lore spots, treasure flags) drop in
+//     here without cluttering GameController's Inspector.
+//
+// Make one with: Right-click in Project -> RPG -> World Marker Data
 [CreateAssetMenu(fileName = "New World Markers", menuName = "RPG/World Marker Data")]
 public class WorldMarkerData : ScriptableObject
 {
@@ -23,8 +21,8 @@ public class WorldMarkerData : ScriptableObject
              "is cleared (region change or rest action).")]
     [SerializeField] private GameObject boneMarkerPrefab;
 
-    [Tooltip("Y-offset applied when spawning the marker. Useful if the defeat position is the enemy's " +
-             "feet (Y≈0) but the prefab pivot is centred — bump this up so the visual sits on the ground.")]
+    [Tooltip("Y-offset added when spawning the marker. Handy if the defeat position is the enemy's " +
+             "feet (Y near 0) but the prefab's pivot is centred; bump this up so the visual sits on the ground.")]
     [SerializeField] private float boneMarkerYOffset = 0f;
 
     public GameObject BoneMarkerPrefab  => boneMarkerPrefab;

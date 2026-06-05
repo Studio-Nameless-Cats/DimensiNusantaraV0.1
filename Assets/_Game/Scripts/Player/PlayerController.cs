@@ -2,20 +2,18 @@ using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-/// <summary>
-/// Handles player movement and interaction in the overworld.
-///
-/// Setup requirements:
-///   1. Add a CharacterController component to this GameObject.
-///   2. Add a PlayerInput component (New Input System) — set Behavior to "Send Messages".
-///   3. Create an InputActions asset with:
-///        - Action Map: "Player"
-///        - Action "Move"     (Value, Vector2)
-///        - Action "Interact" (Button)
-///   4. Assign the InputActions asset to the PlayerInput component.
-///   5. Add a PartySystem component to this GameObject.
-///   6. Optionally add a PlayerAnimator to a child GameObject.
-/// </summary>
+// Handles the player walking around and interacting in the overworld.
+//
+// What you need to set up:
+//   1. Add a CharacterController component to this GameObject.
+//   2. Add a PlayerInput component (New Input System) and set Behavior to "Send Messages".
+//   3. Make an InputActions asset with:
+//        - Action Map: "Player"
+//        - Action "Move"     (Value, Vector2)
+//        - Action "Interact" (Button)
+//   4. Assign that InputActions asset to the PlayerInput component.
+//   5. Add a PartySystem component to this GameObject.
+//   6. Optionally add a PlayerAnimator to a child GameObject.
 [RequireComponent(typeof(CharacterController))]
 [RequireComponent(typeof(PartySystem))]
 public class PlayerController : MonoBehaviour
@@ -28,23 +26,17 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float   interactRange = 1.5f;
     [SerializeField] private LayerMask npcLayer;
 
-    // ── Components ───────────────────────────────────────────────────────────
     private CharacterController cc;
     private PlayerAnimator       playerAnimator;
     private PartySystem          partySystem;
 
-    // ── State ────────────────────────────────────────────────────────────────
     private Vector2 inputVector;
     private float   verticalVelocity;
 
-    // ── Events ───────────────────────────────────────────────────────────────
-    /// <summary>Fired when the player walks into an encounter trigger.</summary>
+    // Fired when the player walks into an encounter trigger.
     public event Action<EnemyEncounterData> OnEncounterTriggered;
 
-    // ── Properties ───────────────────────────────────────────────────────────
     public PartySystem Party => partySystem;
-
-    // ── Unity lifecycle ──────────────────────────────────────────────────────
 
     void Awake()
     {
@@ -53,8 +45,7 @@ public class PlayerController : MonoBehaviour
         playerAnimator = GetComponentInChildren<PlayerAnimator>();
     }
 
-    // ── Called by GameController every frame when state == FreeRoam ─────────
-
+    // GameController calls this every frame while state == FreeRoam.
     public void HandleUpdate()
     {
         MovePlayer();
@@ -64,7 +55,7 @@ public class PlayerController : MonoBehaviour
     {
         Vector3 moveDir = new Vector3(inputVector.x, 0f, inputVector.y);
 
-        // Apply gravity
+        // Gravity. Stick to the ground when grounded, otherwise keep falling faster.
         if (cc.isGrounded)
             verticalVelocity = -1f;
         else
@@ -74,20 +65,20 @@ public class PlayerController : MonoBehaviour
 
         cc.Move(moveDir * moveSpeed * Time.deltaTime);
 
-        // Update animator — pass only horizontal movement
+        // Feed the animator just the horizontal movement (no gravity).
         Vector3 horizontalDir = new Vector3(inputVector.x, 0f, inputVector.y);
         playerAnimator?.UpdateAnimation(horizontalDir);
     }
 
-    // ── New Input System callbacks (PlayerInput → Send Messages) ─────────────
+    // --- Input System callbacks (PlayerInput set to "Send Messages") ---
 
-    /// <summary>Receives Move action from PlayerInput.</summary>
+    // Gets the Move action from PlayerInput.
     public void OnMove(InputValue value)
     {
         inputVector = value.Get<Vector2>();
     }
 
-    /// <summary>Receives Interact action from PlayerInput.</summary>
+    // Gets the Interact action from PlayerInput.
     public void OnInteract(InputValue value)
     {
         if (value.isPressed)
@@ -97,11 +88,11 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    // ── Interaction ──────────────────────────────────────────────────────────
+    // --- Interacting ---
 
     private void TryInteract()
     {
-        // Look for an NPC in front of / around the player
+        // Look for an NPC right around the player.
         Collider[] hits = Physics.OverlapSphere(transform.position, interactRange, npcLayer);
 
         foreach (var hit in hits)
@@ -110,20 +101,19 @@ public class PlayerController : MonoBehaviour
             if (npc != null)
             {
                 npc.Interact(this);
-                return; // Only interact with the closest one
+                return; // just talk to the first one we find
             }
         }
     }
 
-    // ── Called by EncounterTrigger ───────────────────────────────────────────
+    // --- Called by EncounterTrigger ---
 
     public void TriggerEncounter(EnemyEncounterData encounterData)
     {
         OnEncounterTriggered?.Invoke(encounterData);
     }
 
-    // ── Gizmos (editor only) ─────────────────────────────────────────────────
-
+    // Draws the interact range as a wire sphere when this is selected (editor only).
     void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.yellow;

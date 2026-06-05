@@ -5,27 +5,26 @@ using System.Linq;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-// ── Battle state machine states ───────────────────────────────────────────────
+// The states our little battle can be in.
 public enum BattleState
 {
     Start,        // Setting up the battlefield
-    PlayerAction, // Waiting for player to choose Attack or Run
-    PlayerAttack, // Executing player's attack
+    PlayerAction, // Waiting for player to pick Attack or Run
+    PlayerAttack, // Doing the player's attack
     EnemyAttack,  // Enemy AI taking its turn
     Busy,         // Waiting for an animation / coroutine to finish
-    BattleOver    // Battle has ended
+    BattleOver    // Fight's done
 }
 
-/// <summary>
-/// Core turn-based battle system. Manages spawning, turn order, attacks, and win/lose.
-///
-/// Scene Setup:
-///   1. Create a "Battle" scene with this component on a BattleSystem GameObject.
-///   2. Add spawn point Transforms for player units and enemy units.
-///   3. Create a BattleUnit prefab (model + Animator + BattleUnit script + BattleHud UI).
-///   4. Wire up a BattleDialogBox in the Canvas.
-///   5. The GameController will call StartBattle() after scene load.
-/// </summary>
+// The heart of the turn-based battle: spawns everyone, figures out turn order,
+// runs the attacks, and decides who won.
+//
+// How to set up the scene:
+//   1. Make a "Battle" scene with this component on a BattleSystem GameObject.
+//   2. Add spawn-point Transforms for the player units and the enemy units.
+//   3. Make a BattleUnit prefab (model + Animator + BattleUnit script + BattleHud UI).
+//   4. Drop a BattleDialogBox in the Canvas.
+//   5. GameController calls StartBattle() once the scene loads.
 public class BattleSystem : MonoBehaviour
 {
     [Header("Spawn Points")]
@@ -76,95 +75,89 @@ public class BattleSystem : MonoBehaviour
     [SerializeField] private float enemyTurnDelay = 0.8f;   // pause before enemy acts
     [SerializeField] private float attackDelay    = 0.5f;   // pause after attack anim starts
 
-    // ── Runtime state ─────────────────────────────────────────────────────────
+    // Stuff we track while a fight is happening.
     private BattleState       state;
     private List<BattleUnit>  playerUnits = new List<BattleUnit>();
     private List<BattleUnit>  enemyUnits  = new List<BattleUnit>();
     private List<BattleUnit>  turnOrder   = new List<BattleUnit>(); // sorted by Speed
     private int               turnIndex;
 
-    // ── Event ─────────────────────────────────────────────────────────────────
-    /// <summary>Fired when the battle ends. bool = true if the player won (or fled).</summary>
+    // Fired when the fight ends. bool = true if the player won (or ran away).
     public event Action<bool> OnBattleOver;
 
-    // ── Entry point ───────────────────────────────────────────────────────────
-
-    /// <summary>Called by GameController after the Battle scene loads.</summary>
+    // GameController calls this once the Battle scene has loaded.
     public void StartBattle(List<PartyMember> partyMembers, EnemyEncounterData encounterData)
     {
         Debug.Log("[BattleSystem] StartBattle() called.");
         StartCoroutine(SetupBattle(partyMembers, encounterData));
     }
 
-    // ── Setup ─────────────────────────────────────────────────────────────────
-
     private IEnumerator SetupBattle(List<PartyMember> partyMembers, EnemyEncounterData encounterData)
     {
         state = BattleState.Start;
         ClearUnits();
 
-        // ── Inspector reference checks ────────────────────────────────────────
+        // Make sure everything got wired up in the Inspector, or complain loudly.
         if (battleUnitPrefab == null)
-            Debug.LogError("[BattleSystem] battleUnitPrefab is NOT assigned in the Inspector! ❌ Assign the BattleUnit prefab to the BattleSystem component in the Battle scene.");
+            Debug.LogError("[BattleSystem] battleUnitPrefab is NOT assigned in the Inspector! Assign the BattleUnit prefab to the BattleSystem component in the Battle scene.");
 
         if (playerSpawnPoints == null || playerSpawnPoints.Count == 0)
-            Debug.LogError("[BattleSystem] playerSpawnPoints list is EMPTY! ❌ Assign at least one spawn point Transform in the Inspector.");
+            Debug.LogError("[BattleSystem] playerSpawnPoints list is EMPTY! Assign at least one spawn point Transform in the Inspector.");
 
         if (enemySpawnPoints == null || enemySpawnPoints.Count == 0)
-            Debug.LogError("[BattleSystem] enemySpawnPoints list is EMPTY! ❌ Assign at least one spawn point Transform in the Inspector.");
+            Debug.LogError("[BattleSystem] enemySpawnPoints list is EMPTY! Assign at least one spawn point Transform in the Inspector.");
 
         if (dialogBox == null)
-            Debug.LogError("[BattleSystem] dialogBox is NOT assigned in the Inspector! ❌ Assign the BattleDialogBox component.");
+            Debug.LogError("[BattleSystem] dialogBox is NOT assigned in the Inspector! Assign the BattleDialogBox component.");
 
-        // ── Spawn player units ────────────────────────────────────────────────
+        // Spawn the player's healthy members into the player spawn points.
         var healthyMembers = partyMembers.Where(m => !m.IsFainted).ToList();
         int playerCount    = Mathf.Min(healthyMembers.Count, playerSpawnPoints.Count);
 
-        Debug.Log($"[BattleSystem] Spawning player units: {healthyMembers.Count} healthy member(s), {playerSpawnPoints.Count} spawn point(s) → spawning {playerCount}.");
+        Debug.Log($"[BattleSystem] Spawning player units: {healthyMembers.Count} healthy member(s), {playerSpawnPoints.Count} spawn point(s), spawning {playerCount}.");
 
         for (int i = 0; i < playerCount; i++)
         {
             Debug.Log($"[BattleSystem] Spawning player unit [{i}]: {healthyMembers[i].Name}");
             var unit = SpawnUnit(playerSpawnPoints[i]);
-            if (unit == null) { Debug.LogError($"[BattleSystem] SpawnUnit() returned null for player slot {i}! ❌ Check your BattleUnit prefab has a BattleUnit component on its root."); continue; }
-            healthyMembers[i].ResetSpecial();               // Special gauge starts empty each battle
-            healthyMembers[i].ClearStatuses();              // no buffs/debuffs carry between battles
-            unit.Setup(healthyMembers[i], isPlayer: true);  // ← explicitly marked as player
+            if (unit == null) { Debug.LogError($"[BattleSystem] SpawnUnit() returned null for player slot {i}! Check your BattleUnit prefab has a BattleUnit component on its root."); continue; }
+            healthyMembers[i].ResetSpecial();               // Special gauge always starts empty
+            healthyMembers[i].ClearStatuses();              // no buffs/debuffs carry over between fights
+            unit.Setup(healthyMembers[i], isPlayer: true);  // true = this is a player
             playerUnits.Add(unit);
         }
 
-        // ── Spawn enemy units ─────────────────────────────────────────────────
+        // Now spawn the enemies the encounter rolled up.
         var enemyDataList = encounterData.GetRandomEnemies();
         int enemyCount    = Mathf.Min(enemyDataList.Count, enemySpawnPoints.Count);
 
-        Debug.Log($"[BattleSystem] Spawning enemy units: {enemyDataList.Count} from encounter data, {enemySpawnPoints.Count} spawn point(s) → spawning {enemyCount}.");
+        Debug.Log($"[BattleSystem] Spawning enemy units: {enemyDataList.Count} from encounter data, {enemySpawnPoints.Count} spawn point(s), spawning {enemyCount}.");
 
         if (enemyDataList.Count == 0)
-            Debug.LogError("[BattleSystem] GetRandomEnemies() returned 0 enemies! ❌ Check your EnemyEncounterData SO has enemies assigned with spawnWeight > 0.");
+            Debug.LogError("[BattleSystem] GetRandomEnemies() returned 0 enemies! Check your EnemyEncounterData SO has enemies assigned with spawnWeight > 0.");
 
         for (int i = 0; i < enemyCount; i++)
         {
             Debug.Log($"[BattleSystem] Spawning enemy unit [{i}]: {enemyDataList[i].Name}");
             var unit = SpawnUnit(enemySpawnPoints[i]);
-            if (unit == null) { Debug.LogError($"[BattleSystem] SpawnUnit() returned null for enemy slot {i}! ❌ Check your BattleUnit prefab has a BattleUnit component on its root."); continue; }
-            unit.Setup(new PartyMember(enemyDataList[i]), isPlayer: false);  // ← explicitly marked as enemy
+            if (unit == null) { Debug.LogError($"[BattleSystem] SpawnUnit() returned null for enemy slot {i}! Check your BattleUnit prefab has a BattleUnit component on its root."); continue; }
+            unit.Setup(new PartyMember(enemyDataList[i]), isPlayer: false);  // false = this is an enemy
             enemyUnits.Add(unit);
         }
 
-        // ── Determine turn order ──────────────────────────────────────────────
-        // Initiative is rebuilt each round from current effective Speed (so Slow/Haste
-        // statuses change ordering), and the display bar is (re)initialised inside.
+        // Work out who goes first. We rebuild this every round from current Speed
+        // (so Slow/Haste actually shuffle the order), and the display bar gets set up inside.
         StartNewRound();
 
         if (turnOrder.Count == 0)
         {
-            Debug.LogError("[BattleSystem] Turn order is empty — no units were spawned. Battle cannot start.");
+            Debug.LogError("[BattleSystem] Turn order is empty, nobody spawned. Battle can't start.");
             yield break;
         }
 
-        Debug.Log($"[BattleSystem] Turn order ({turnOrder.Count} units): {string.Join(" → ", turnOrder.Select(u => u.Member.Name))}");
+        Debug.Log($"[BattleSystem] Turn order ({turnOrder.Count} units): {string.Join(" -> ", turnOrder.Select(u => u.Member.Name))}");
 
-        // ── Opening message ───────────────────────────────────────────────────
+        // Say hello to the enemies.
         string enemyNames = string.Join(", ", enemyUnits.Select(u => u.Member.Name));
         yield return dialogBox.TypeDialog($"Pertemuan Tak Terduga! {enemyNames} muncul!");
 
@@ -180,19 +173,15 @@ public class BattleSystem : MonoBehaviour
         var unit = go.GetComponent<BattleUnit>();
 
         if (unit == null)
-            Debug.LogError($"[BattleSystem] Instantiated prefab '{battleUnitPrefab.name}' but found no BattleUnit component on its root GameObject! ❌");
+            Debug.LogError($"[BattleSystem] Instantiated prefab '{battleUnitPrefab.name}' but found no BattleUnit component on its root GameObject!");
 
         return unit;
     }
 
-    // ── Turn management ───────────────────────────────────────────────────────
-
-    /// <summary>
-    /// (Re)build the initiative order for a fresh round from every still-standing unit,
-    /// sorted by CURRENT effective Speed — so Slow/Haste statuses applied during the fight
-    /// re-order the queue from the next round. Resets the turn pointer and rebuilds the
-    /// turn-order bar (fainted units drop off naturally since they're filtered out here).
-    /// </summary>
+    // Builds a fresh turn order for a new round from everyone still standing, sorted by
+    // their current Speed. That means Slow/Haste picked up mid-fight shuffle the order
+    // starting next round. Also resets the turn pointer and rebuilds the turn bar
+    // (fainted units just drop off since we filter them out here).
     private void StartNewRound()
     {
         turnOrder = playerUnits.Concat(enemyUnits)
@@ -203,43 +192,42 @@ public class BattleSystem : MonoBehaviour
         turnOrderDisplay?.Initialise(turnOrder);
     }
 
-    /// <summary>Kicks off the current unit's turn (entry point used everywhere a turn ends).</summary>
+    // Starts the current unit's turn. This is the entry point we call every time a turn ends.
     private void StartNextTurn() => StartCoroutine(RunTurn());
 
-    /// <summary>
-    /// Drives one unit's turn: rolls a new round when the queue is exhausted, skips
-    /// units that fainted mid-round, resolves start-of-turn statuses (DoT/regen + stun),
-    /// then hands off to the player command menu or the enemy AI.
-    /// </summary>
+    // Runs one unit's turn: rolls a new round when we run out of units, skips anyone
+    // who fainted mid-round, handles start-of-turn statuses (poison/regen + stun),
+    // then hands control to either the player's command menu or the enemy AI.
     private IEnumerator RunTurn()
     {
-        // End of the queue → start a fresh round (re-sorted by current Speed).
+        // Ran past the end of the queue? Start a fresh round (re-sorted by Speed).
         if (turnIndex >= turnOrder.Count)
             StartNewRound();
 
-        // Skip units that fainted earlier this round (still in the list for display alignment).
+        // Skip anyone who fainted earlier this round (we keep them in the list so the
+        // display stays lined up).
         int guard = 0;
         while (turnIndex < turnOrder.Count && turnOrder[turnIndex].Member.IsFainted)
         {
             turnIndex++;
             if (turnIndex >= turnOrder.Count) StartNewRound();
-            if (++guard > 200) { EndBattle(false); yield break; }   // safety net
+            if (++guard > 200) { EndBattle(false); yield break; }   // just in case, don't loop forever
         }
 
         if (turnOrder.Count == 0) { EndBattle(false); yield break; }
 
         var current = turnOrder[turnIndex];
 
-        // Highlight whoever is acting now.
+        // Light up whoever's acting right now.
         turnOrderDisplay?.UpdateCurrentTurn(turnIndex);
 
-        // ── Start-of-turn status resolution ────────────────────────────────────
+        // Deal with any statuses that fire at the start of the turn.
         if (current.Member.HasStatuses)
         {
             var report = current.Member.ProcessTurnStart();
             current.RefreshStatusIcons();
 
-            // Per-turn HP ticks (poison/burn damage, regen heal).
+            // HP ticks for this turn (poison/burn hurts, regen heals).
             foreach (var tick in report.Ticks)
             {
                 current.UpdateHud();
@@ -250,14 +238,14 @@ public class BattleSystem : MonoBehaviour
                 yield return new WaitForSeconds(0.4f);
             }
 
-            // A DoT may have downed the unit — resolve faint + win/lose, then move on.
+            // Poison/burn might have just KO'd them. Handle the faint + win/lose, then bail.
             if (current.Member.IsFainted)
             {
                 yield return ResolveAfterAction();
                 yield break;
             }
 
-            // Stun: the unit loses its action this turn (duration already counted down).
+            // Stunned? They lose their action this turn (the duration already ticked down).
             if (report.WasStunned)
             {
                 yield return dialogBox.TypeDialog($"{current.Member.Name} tertegun dan tidak bisa bergerak!");
@@ -282,7 +270,7 @@ public class BattleSystem : MonoBehaviour
 
     private void AdvanceTurnIndex() => turnIndex++;
 
-    // ── Player action ─────────────────────────────────────────────────────────
+    // --- Player's turn ---
 
     private IEnumerator ShowPlayerActions(BattleUnit unit)
     {
@@ -290,15 +278,15 @@ public class BattleSystem : MonoBehaviour
         OpenActionMenu();
     }
 
-    /// <summary>Shows the 4-button command menu and (re)wires its events. Used both at
-    /// turn start and when the player backs out of a skill panel.</summary>
+    // Pops up the 4-button command menu and hooks up its events. Used both when a turn
+    // starts and when the player backs out of the skill panel.
     private void OpenActionMenu()
     {
         state = BattleState.PlayerAction;
         dialogBox.ShowActionSelector(true);
         dialogBox.EnableButtons(true);
 
-        // Wire button events — unsubscribe first to avoid stacking listeners
+        // Unsubscribe first so we don't stack up duplicate listeners.
         UnsubscribeButtons();
         dialogBox.OnAttackPressed  += HandleAttack;
         dialogBox.OnSkillPressed   += HandleSkill;
@@ -316,15 +304,15 @@ public class BattleSystem : MonoBehaviour
 
         if (aliveEnemies.Count == 0) { EndBattle(true); return; }
 
-        // Only one enemy alive — skip the selector and attack immediately
+        // Only one enemy left? Skip the picker and just hit it.
         if (aliveEnemies.Count == 1 || targetSelector == null)
         {
             StartCoroutine(PerformAttack(attacker, aliveEnemies[0], isPlayerAttack: true));
             return;
         }
 
-        // Multiple enemies — show target selector, wait for player choice.
-        // Tapping the backdrop backs out to the command menu (attack costs nothing).
+        // More than one enemy: show the target picker and wait for a choice.
+        // Tapping the backdrop just backs out to the command menu (attacking is free).
         state = BattleState.Busy;
         targetSelector.Show(aliveEnemies,
             chosenTarget => StartCoroutine(PerformAttack(attacker, chosenTarget, isPlayerAttack: true)),
@@ -338,7 +326,7 @@ public class BattleSystem : MonoBehaviour
         StartCoroutine(TryRun());
     }
 
-    // ── Skill / Special Skill commands ─────────────────────────────────────────
+    // --- Skill / Special Skill buttons ---
 
     private void HandleSkill()   => OpenSkillPicker(SkillCategory.Normal);
     private void HandleSpecial() => OpenSkillPicker(SkillCategory.Special);
@@ -351,15 +339,15 @@ public class BattleSystem : MonoBehaviour
 
         if (skillPanel == null)
         {
-            // No panel wired yet — keep the menu open so the button isn't a dead-end.
-            Debug.LogWarning("[BattleSystem] skillPanel not assigned — skill command ignored.");
+            // No panel hooked up yet, so keep the menu open instead of leaving a dead button.
+            Debug.LogWarning("[BattleSystem] skillPanel not assigned, skill command ignored.");
             return;
         }
 
         CloseActionMenu();
         state = BattleState.Busy;
 
-        // Read the loadout-aware lists: equipped normal skills, fixed special skills.
+        // Grab the right list: equipped normal skills, or the fixed special skills.
         var list = category == SkillCategory.Special
             ? user.Member.SpecialSkills
             : user.Member.Skills;
@@ -368,7 +356,7 @@ public class BattleSystem : MonoBehaviour
         {
             if (chosen == null)
             {
-                // Cancelled (tapped outside) — back to the command menu.
+                // They tapped outside to cancel, so go back to the command menu.
                 OpenActionMenu();
                 return;
             }
@@ -391,14 +379,14 @@ public class BattleSystem : MonoBehaviour
         dialogBox.OnRunPressed     -= HandleRun;
     }
 
-    /// <summary>Resolves the skill's target(s), then runs it. Handles the per-target
-    /// picker for single-target skills (auto-targets when only one valid choice).</summary>
+    // Figures out who a skill hits, then runs it. For single-target skills it shows the
+    // picker, or auto-targets when there's only one valid choice.
     private IEnumerator BeginSkill(BattleUnit user, SkillData skill)
     {
-        // Note: the resource is spent in PerformSkill (after a target is locked in), so
-        // backing out of target selection costs nothing.
+        // Heads up: we only pay for the skill in PerformSkill (after a target is locked
+        // in), so backing out of target selection doesn't cost anything.
 
-        // Build the candidate target list (side depends on the skill).
+        // Build the list of possible targets (which side depends on the skill).
         if (skill.TargetsSelf)
         {
             yield return PerformSkill(user, skill, new List<BattleUnit> { user });
@@ -416,23 +404,23 @@ public class BattleSystem : MonoBehaviour
             yield break;
         }
 
-        // Single target: auto-pick if only one, else show the selector.
+        // Single target: auto-pick if there's only one, otherwise show the picker.
         if (candidates.Count == 1 || targetSelector == null)
         {
             yield return PerformSkill(user, skill, new List<BattleUnit> { candidates[0] });
             yield break;
         }
 
-        // Multiple choices — pick one, or tap outside to back out to the command menu.
+        // Several to choose from: pick one, or tap outside to go back to the command menu.
         targetSelector.Show(candidates,
             chosen => StartCoroutine(PerformSkill(user, skill, new List<BattleUnit> { chosen })),
             onCancel: () => OpenActionMenu());
     }
 
-    /// <summary>Spends the skill's resource, then applies its effect (damage or heal) to every target.</summary>
+    // Pays the skill's cost, then applies its effect (damage or heal) to every target.
     private IEnumerator PerformSkill(BattleUnit user, SkillData skill, List<BattleUnit> targets)
     {
-        // Pay now that a target is committed (cards were only tappable if affordable).
+        // Pay now that a target's locked in (cards were only tappable if we could afford them).
         bool paid = skill.Category == SkillCategory.Special
             ? user.Member.SpendSpecial(skill.Cost)
             : user.Member.SpendMp(skill.Cost);
@@ -444,7 +432,7 @@ public class BattleSystem : MonoBehaviour
         }
 
         state = BattleState.Busy;
-        user.RefreshResources();   // show the MP / Special spend immediately
+        user.RefreshResources();   // show the MP / Special drain right away
 
         user.PlayAttackAnimation();
         yield return new WaitForSeconds(attackDelay);
@@ -461,7 +449,7 @@ public class BattleSystem : MonoBehaviour
                 yield return dialogBox.TypeDialog(
                     $"{user.Member.Name} menggunakan {skill.Name} — {dmg} damage ke {t.Member.Name}!");
             }
-            if (skill.AppliesStatus) yield return ApplyStatusToTargets(skill, targets);   // rider
+            if (skill.AppliesStatus) yield return ApplyStatusToTargets(skill, targets);   // bonus status on top
         }
         else if (skill.EffectType == SkillEffectType.Heal)
         {
@@ -472,19 +460,19 @@ public class BattleSystem : MonoBehaviour
                 yield return dialogBox.TypeDialog(
                     $"{user.Member.Name} menggunakan {skill.Name} — memulihkan {skill.HealAmount} HP {t.Member.Name}!");
             }
-            if (skill.AppliesStatus) yield return ApplyStatusToTargets(skill, targets);   // rider
+            if (skill.AppliesStatus) yield return ApplyStatusToTargets(skill, targets);   // bonus status on top
         }
-        else // ApplyStatus — the status IS the effect
+        else // ApplyStatus: the status itself IS the whole point of the skill
         {
             yield return dialogBox.TypeDialog($"{user.Member.Name} menggunakan {skill.Name}!");
             yield return ApplyStatusToTargets(skill, targets);
         }
 
-        // Resolve faints for any damaged enemies, then continue the turn cycle.
+        // Check if anyone we hit went down, then carry on with the turn cycle.
         yield return ResolveAfterAction();
     }
 
-    /// <summary>Applies a skill's status effect to each living target and announces it.</summary>
+    // Slaps a skill's status effect onto each living target and announces it.
     private IEnumerator ApplyStatusToTargets(SkillData skill, List<BattleUnit> targets)
     {
         var status = skill.StatusEffect;
@@ -496,7 +484,7 @@ public class BattleSystem : MonoBehaviour
 
             bool added = t.Member.ApplyStatus(status);
             t.RefreshStatusIcons();
-            t.UpdateHud();   // refresh in case a buff/debuff is reflected on the HUD
+            t.UpdateHud();   // redraw in case the buff/debuff shows up on the HUD
 
             yield return dialogBox.TypeDialog(added
                 ? $"{t.Member.Name} terkena efek {status.Name}!"
@@ -505,8 +493,8 @@ public class BattleSystem : MonoBehaviour
         }
     }
 
-    /// <summary>Shared post-action win/lose + turn advance (used by skills, which can
-    /// hit multiple targets). Mirrors the tail of CheckFainted.</summary>
+    // Shared "did anyone die, did we win/lose, whose turn next" cleanup. Skills use this
+    // since they can hit several targets at once. Basically the tail end of CheckFainted.
     private IEnumerator ResolveAfterAction()
     {
         foreach (var u in playerUnits.Concat(enemyUnits))
@@ -529,7 +517,7 @@ public class BattleSystem : MonoBehaviour
         StartNextTurn();
     }
 
-    // ── Enemy AI ──────────────────────────────────────────────────────────────
+    // --- Enemy's turn ---
 
     private IEnumerator EnemyTurn(BattleUnit attacker)
     {
@@ -540,7 +528,7 @@ public class BattleSystem : MonoBehaviour
 
         var target = alivePlayers[UnityEngine.Random.Range(0, alivePlayers.Count)];
 
-        // ── Parry prompt ──────────────────────────────────────────────────────
+        // Give the player a chance to parry the incoming hit.
         ParryTier parryGrade = ParryTier.Miss;
 
         if (parrySystem != null)
@@ -554,13 +542,13 @@ public class BattleSystem : MonoBehaviour
 
         if (parryGrade == ParryTier.Miss)
         {
-            // Failed parry (or no parry system): take the hit in full.
+            // Whiffed the parry (or there's no parry system): just eat the hit.
             yield return PerformAttack(attacker, target, isPlayerAttack: false);
         }
         else
         {
-            // Successful parry: incoming attack is fully blocked, then the defender
-            // counters — Perfect lands a bigger counter than Good (precision pays off).
+            // Nailed the parry: the hit is fully blocked, then we counter. A Perfect
+            // parry counters harder than a Good one, so tapping precisely pays off.
             float counterMult = parryGrade == ParryTier.Perfect
                 ? parryCounterMultiplier
                 : goodParryCounterMultiplier;
@@ -569,22 +557,20 @@ public class BattleSystem : MonoBehaviour
         }
     }
 
-    // ── Attack execution ──────────────────────────────────────────────────────
+    // --- Doing an attack ---
 
-    /// <summary>
-    /// Executes one attack from attacker → target.
-    /// Pass damageMultiplier = critMultiplier for a crit, or 1f for a normal hit.
-    /// The dice roll check runs automatically for player attacks.
-    /// </summary>
+    // Runs one attack from attacker to target.
+    // Pass damageMultiplier = critMultiplier for a crit, or 1f for a plain hit.
+    // The dice-roll crit check happens automatically on player attacks.
     private IEnumerator PerformAttack(BattleUnit attacker, BattleUnit target,
                                        bool isPlayerAttack, float damageMultiplier = 1f)
     {
         state = isPlayerAttack ? BattleState.PlayerAttack : BattleState.EnemyAttack;
 
-        // ── Dice Roll: player attacks only, with critTriggerChance probability ──
-        // Resolve the dice BEFORE swinging so the attack animation doesn't fire
-        // before the crit is even decided. When no dice roll happens (the common
-        // case), the swing plays immediately on the button press as before.
+        // Dice roll only happens on player attacks, and only some of the time
+        // (critTriggerChance). We settle the dice BEFORE the swing so the animation
+        // doesn't play before we even know if it's a crit. No dice roll (the usual
+        // case)? The swing fires right away on the button press, same as before.
         bool isCrit       = false;
         bool willRollDice = isPlayerAttack && diceRollUI != null
                             && UnityEngine.Random.value < critTriggerChance;
@@ -607,13 +593,14 @@ public class BattleSystem : MonoBehaviour
         target.UpdateHud();
         ShakeCamera(isCrit ? critShakeMagnitude : hitShakeMagnitude);
 
-        // Build the Special gauge: the attacker charges on a basic attack, and any
-        // player who gets hit charges too (so a defending party still builds toward a special).
+        // Charge up the Special gauge: the attacker gains some for landing a basic
+        // attack, and any player who gets hit gains some too (so even a party that's
+        // just defending slowly builds toward a special).
         if (isPlayerAttack)      attacker.Member.AddSpecial(specialChargeOnAttack);
         if (target.IsPlayerUnit) target.Member.AddSpecial(specialChargeOnHit);
 
-        // Reflect the Special-gauge change on the HUDs (target's HP bar already
-        // refreshed via UpdateHud above; this catches the attacker's gauge).
+        // Push that gauge change to the HUDs (the target's HP bar already got refreshed
+        // by UpdateHud above; this is here to catch the attacker's gauge).
         if (isPlayerAttack)      attacker.RefreshResources();
         if (target.IsPlayerUnit) target.RefreshResources();
 
@@ -626,14 +613,11 @@ public class BattleSystem : MonoBehaviour
         yield return CheckFainted(target);
     }
 
-    // ── Parry counter-attack ──────────────────────────────────────────────────
+    // --- Parry counter-attack ---
 
-    /// <summary>
-    /// Called when the player successfully parries an enemy attack.
-    /// The incoming attack is fully negated (0 damage), then the defender
-    /// immediately strikes back at the original attacker. The counter multiplier
-    /// scales with parry precision (Perfect > Good).
-    /// </summary>
+    // Runs when the player successfully parries an enemy attack. The incoming hit does
+    // 0 damage, then the defender immediately swings back at whoever attacked them. How
+    // hard the counter hits depends on parry precision (Perfect counters harder than Good).
     private IEnumerator PerformParryCounter(BattleUnit defender, BattleUnit originalAttacker,
                                             float counterMultiplier, ParryTier grade)
     {
@@ -656,12 +640,10 @@ public class BattleSystem : MonoBehaviour
         yield return CheckFainted(originalAttacker);
     }
 
-    // ── Faint check (shared by PerformAttack and PerformParryCounter) ─────────
+    // --- Faint check (used by both PerformAttack and PerformParryCounter) ---
 
-    /// <summary>
-    /// Checks if a unit fainted after taking damage. Handles win/lose/continue.
-    /// Advances the turn index and starts the next turn if the battle continues.
-    /// </summary>
+    // Checks whether a unit just went down after taking damage, and sorts out
+    // win/lose/keep-going. If the fight continues, it moves to the next turn.
     private IEnumerator CheckFainted(BattleUnit unit)
     {
         if (unit.Member.IsFainted)
@@ -671,7 +653,7 @@ public class BattleSystem : MonoBehaviour
             yield return dialogBox.TypeDialog($"{unit.Member.Name} tewas mengenaskan!");
             yield return new WaitForSeconds(0.5f);
 
-            // Clear the fallen unit from view entirely (sprite, name, HP bar).
+            // Wipe the fallen unit off the screen completely (sprite, name, HP bar).
             unit.Hide();
 
             bool playerWon  = !enemyUnits.Any(u => !u.Member.IsFainted);
@@ -698,7 +680,7 @@ public class BattleSystem : MonoBehaviour
         StartNextTurn();
     }
 
-    // ── Run ───────────────────────────────────────────────────────────────────
+    // --- Running away ---
 
     private IEnumerator TryRun()
     {
@@ -713,7 +695,7 @@ public class BattleSystem : MonoBehaviour
         {
             yield return dialogBox.TypeDialog("Berhasil melarikan diri!");
             yield return new WaitForSeconds(0.8f);
-            EndBattle(false); // false = did not defeat enemies (fled)
+            EndBattle(false); // false = we ran, didn't actually beat the enemies
         }
         else
         {
@@ -723,15 +705,12 @@ public class BattleSystem : MonoBehaviour
         }
     }
 
-    // ── Experience reward ──────────────────────────────────────────────────────
+    // --- Handing out EXP ---
 
-    /// <summary>
-    /// On a win, sums each defeated enemy's <see cref="CharacterData.ExpReward"/> and
-    /// grants the full amount to every SURVIVING player member (fainted members earn
-    /// nothing). Members are the live PartyMember instances (they persist across the
-    /// scene reload), so the EXP + any level-ups stick and get saved. Announces the
-    /// EXP gain and any level-ups in the dialog box.
-    /// </summary>
+    // When you win, add up every defeated enemy's ExpReward and hand the full amount to
+    // each surviving party member (fainted ones get nothing). These are the live
+    // PartyMember objects that stick around through the scene reload, so the EXP and any
+    // level-ups actually save. Shows the EXP gain and any level-ups in the dialog box.
     private IEnumerator AwardBattleExp()
     {
         int totalExp = enemyUnits.Sum(u => u.Member?.Base != null ? u.Member.Base.ExpReward : 0);
@@ -756,7 +735,7 @@ public class BattleSystem : MonoBehaviour
         }
     }
 
-    // ── End battle ────────────────────────────────────────────────────────────
+    // --- Wrapping up ---
 
     private void EndBattle(bool playerWon)
     {
@@ -776,11 +755,11 @@ public class BattleSystem : MonoBehaviour
         turnIndex = 0;
     }
 
-    // ── Juice ─────────────────────────────────────────────────────────────────
+    // --- Juice ---
 
-    /// <summary>Fires the optional battle-camera shake. No-op if no CameraShake is wired.</summary>
+    // Kicks the optional camera shake. Does nothing if no CameraShake is wired up.
     private void ShakeCamera(float magnitude) => cameraShake?.Shake(magnitude);
 
-    // ── Public handle (for GameController poll if needed) ─────────────────────
+    // Here in case GameController wants to poll us. We don't need it; all input is buttons.
     public void HandleUpdate() { /* Input is handled via UI buttons */ }
 }

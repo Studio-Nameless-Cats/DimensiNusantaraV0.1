@@ -1,15 +1,13 @@
-/// <summary>
-/// A runtime, battle-only instance of a <see cref="StatusEffectData"/> sitting on one
-/// PartyMember. Tracks how many of the affected unit's turns remain. Plain C# (no
-/// MonoBehaviour / SO) — created fresh each time a status is applied, discarded when it
-/// expires or the battle ends. Not serialized: statuses are cleared at battle start
-/// (same lifecycle as the per-battle Special gauge).
-/// </summary>
+// A live, battle-only copy of a StatusEffectData stuck on one PartyMember. It just keeps
+// count of how many of that unit's turns are left. Plain C# (no MonoBehaviour or SO):
+// we make a new one each time a status gets applied and throw it away when it expires or
+// the fight ends. Nothing gets saved; statuses are wiped at the start of each battle,
+// same as the per-battle Special gauge.
 public class StatusEffectInstance
 {
     public StatusEffectData Data { get; }
 
-    /// <summary>Turns left before this status expires. Counts down at the affected unit's turn start.</summary>
+    // Turns left before this wears off. Counts down at the start of the unit's turn.
     public int TurnsRemaining { get; private set; }
 
     public StatusEffectInstance(StatusEffectData data)
@@ -18,39 +16,39 @@ public class StatusEffectInstance
         TurnsRemaining = data != null ? data.Duration : 1;
     }
 
-    /// <summary>Decrement the remaining duration by one turn and return the new value.</summary>
+    // Knock one turn off the timer and return what's left.
     public int Tick() => --TurnsRemaining;
 
-    /// <summary>True once the status has run out of turns.</summary>
+    // True once it's run out of turns.
     public bool IsExpired => TurnsRemaining <= 0;
 
-    /// <summary>Reset the timer back to the data's full duration (used when re-applying a refreshable status).</summary>
+    // Bump the timer back to full. Used when you re-apply a status that's allowed to refresh.
     public void Refresh()
     {
         if (Data != null) TurnsRemaining = Data.Duration;
     }
 }
 
-/// <summary>One per-turn HP change from a status (poison/burn = negative, regen = positive).</summary>
+// One turn's worth of HP change from a status. Negative = poison/burn hurting you,
+// positive = regen healing you.
 public struct StatusTick
 {
     public readonly StatusEffectData Data;
-    /// <summary>HP delta applied. NEGATIVE = damage taken, POSITIVE = HP healed.</summary>
+    // The HP change. Negative means damage taken, positive means HP healed.
     public readonly int HpDelta;
     public StatusTick(StatusEffectData data, int hpDelta) { Data = data; HpDelta = hpDelta; }
 }
 
-/// <summary>
-/// Summary of what happened to a unit's statuses at the start of its turn — returned by
-/// <see cref="PartyMember.ProcessTurnStart"/> so the BattleSystem can narrate it (UI-agnostic).
-/// </summary>
+// A little rundown of what happened to a unit's statuses at the start of its turn.
+// PartyMember.ProcessTurnStart() hands this back so BattleSystem can narrate it without
+// caring about any specific UI.
 public class StatusTurnReport
 {
-    /// <summary>True if the unit was stunned this turn (its action should be skipped).</summary>
+    // True if the unit got stunned this turn (so its action should be skipped).
     public bool WasStunned;
-    /// <summary>Per-turn HP changes applied this turn (DoT / regen), in order.</summary>
+    // The HP changes that hit this turn (poison/regen), in order.
     public readonly System.Collections.Generic.List<StatusTick> Ticks = new System.Collections.Generic.List<StatusTick>();
-    /// <summary>Statuses that ran out of turns and were removed this turn.</summary>
+    // Statuses that ran out of turns and got removed this turn.
     public readonly System.Collections.Generic.List<StatusEffectData> Expired = new System.Collections.Generic.List<StatusEffectData>();
 
     public bool HasTicks => Ticks.Count > 0;

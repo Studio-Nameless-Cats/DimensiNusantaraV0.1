@@ -7,43 +7,41 @@ using Newtonsoft.Json;
 
 namespace Nusantara.SaveSystem
 {
-    /// <summary>
-    /// Central save/load coordinator. Static (no scene object to wire) and
-    /// dependency: Newtonsoft Json (com.unity.nuget.newtonsoft-json — install via
-    /// Package Manager → Add package by name).
-    ///
-    /// Responsibilities:
-    ///   • Capture the live game into a <see cref="SaveData"/> snapshot.
-    ///   • Write/read JSON with ATOMIC writes (temp file + replace) so a crash
-    ///     mid-save never corrupts an existing save.
-    ///   • Multiple slots, each with a lightweight .meta header for load menus.
-    ///   • Versioning + migration hook so old saves keep loading as the game grows.
-    ///   • Restore on the next scene load (party + player position), having already
-    ///     imported the static world registry BEFORE the scene loads (no race with
-    ///     GameController's bone-marker spawn).
-    ///
-    /// Core systems (party, player position, world registry) are captured directly.
-    /// Future modular systems plug in via <see cref="ISaveParticipant"/> + Register().
-    /// </summary>
+    // The brain behind saving and loading. It's static (nothing to wire up in a scene)
+    // and leans on Newtonsoft Json (com.unity.nuget.newtonsoft-json, grab it from the
+    // Package Manager via "Add package by name").
+    //
+    // What it does:
+    //   - Snapshots the live game into a SaveData.
+    //   - Reads/writes JSON with atomic writes (temp file then replace), so a crash
+    //     mid-save can't corrupt an existing save.
+    //   - Supports several slots, each with a small .meta header for load menus.
+    //   - Has a version + migration hook so old saves keep loading as the game grows.
+    //   - Restores on the next scene load (party + player position), after already
+    //     importing the static world registry BEFORE the scene loads (so it doesn't
+    //     race GameController's bone-marker spawn).
+    //
+    // The core stuff (party, player position, world registry) gets captured directly.
+    // Bolt-on systems later plug in through ISaveParticipant + Register().
     public static class SaveManager
     {
         public const int SlotCount = 3;
 
-        // ── Participant registry (future modular systems) ──────────────────────
+        // Registry for any bolt-on systems that want in on saves.
         private static readonly List<ISaveParticipant> participants = new List<ISaveParticipant>();
         public static void Register(ISaveParticipant p)   { if (p != null && !participants.Contains(p)) participants.Add(p); }
         public static void Unregister(ISaveParticipant p) { participants.Remove(p); }
 
-        // ── Playtime tracking ──────────────────────────────────────────────────
+        // Keeping track of total playtime.
         private static float _loadedPlaySeconds;
         private static float _sessionStartRealtime = Time.realtimeSinceStartup;
         public static float CurrentPlaySeconds =>
             _loadedPlaySeconds + (Time.realtimeSinceStartup - _sessionStartRealtime);
 
-        // ── Pending restore (applied on next matching scene load) ───────────────
+        // A save waiting to be applied on the next matching scene load.
         private static SaveData _pendingRestore;
 
-        // ── Bootstrap: hook scene loads once, automatically ─────────────────────
+        // Hook into scene loads once, automatically, when the game starts.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void Bootstrap()
         {
@@ -51,7 +49,7 @@ namespace Nusantara.SaveSystem
             SceneManager.sceneLoaded += OnSceneLoaded;
         }
 
-        // ── Paths ────────────────────────────────────────────────────────────────
+        // Where the save files live.
         private static string SaveDir => Application.persistentDataPath;
         private static string SavePath(int slot) => Path.Combine(SaveDir, $"save_{slot}.json");
         private static string MetaPath(int slot) => Path.Combine(SaveDir, $"save_{slot}.meta.json");
@@ -62,11 +60,9 @@ namespace Nusantara.SaveSystem
             NullValueHandling = NullValueHandling.Ignore
         };
 
-        // ── Public API ─────────────────────────────────────────────────────────
-
         public static bool HasSave(int slot = 0) => File.Exists(SavePath(slot));
 
-        /// <summary>Lightweight slot header for a load menu — null if the slot is empty.</summary>
+        // The small slot header for a load menu. Null if the slot's empty.
         public static SaveMetadata GetMetadata(int slot = 0)
         {
             try
@@ -95,21 +91,19 @@ namespace Nusantara.SaveSystem
             }
         }
 
-        /// <summary>Call when starting a fresh game so playtime + world state reset cleanly.</summary>
+        // Call this when starting a brand-new game so playtime + world state reset cleanly.
         public static void NewGame()
         {
             _loadedPlaySeconds   = 0f;
             _sessionStartRealtime = Time.realtimeSinceStartup;
             _pendingRestore      = null;
             DefeatedEnemyRegistry.ClearAll();
-            PartySystem.ResetParty();   // wipe persistent party → starting party rebuilds in the new scene
+            PartySystem.ResetParty();   // wipe the persistent party so the starting party rebuilds in the new scene
         }
 
-        /// <summary>
-        /// Snapshots the live game and writes it (atomically) to the given slot.
-        /// Must be called from FreeRoam — never mid-battle (we don't serialize live
-        /// battle coroutines; a loaded game always lands in the overworld).
-        /// </summary>
+        // Snapshots the live game and writes it (atomically) to the given slot.
+        // Only call this from FreeRoam, never mid-battle: we don't serialize live battle
+        // coroutines, and a loaded game always comes back in the overworld anyway.
         public static bool Save(int slot = 0)
         {
             try
@@ -133,11 +127,9 @@ namespace Nusantara.SaveSystem
             }
         }
 
-        /// <summary>
-        /// Reads a slot, imports the static world registry immediately, then loads the
-        /// saved overworld scene. Party + player position are restored once that scene
-        /// finishes loading (see <see cref="OnSceneLoaded"/>). Returns false if empty/corrupt.
-        /// </summary>
+        // Reads a slot, imports the static world registry right away, then loads the saved
+        // overworld scene. The party + player position get restored once that scene
+        // finishes loading (see OnSceneLoaded). Returns false if the slot's empty or busted.
         public static bool Load(int slot = 0)
         {
             try
@@ -153,11 +145,11 @@ namespace Nusantara.SaveSystem
 
                 data = Migrate(data);
 
-                // World registry is static & scene-independent — import BEFORE the scene
-                // loads so GameController's bone-marker spawn sees the right data.
+                // The world registry is static and scene-independent, so import it BEFORE
+                // the scene loads, that way GameController's bone-marker spawn sees the right data.
                 DefeatedEnemyRegistry.Import(data.world);
 
-                // Playtime baseline from metadata (if present).
+                // Set the playtime baseline from the metadata, if it's there.
                 var meta = GetMetadata(slot);
                 _loadedPlaySeconds    = meta?.playSeconds ?? 0f;
                 _sessionStartRealtime = Time.realtimeSinceStartup;
@@ -166,7 +158,7 @@ namespace Nusantara.SaveSystem
 
                 if (string.IsNullOrEmpty(data.player.sceneName))
                 {
-                    Debug.LogError("[SaveManager] Save has no scene name — cannot load.");
+                    Debug.LogError("[SaveManager] Save has no scene name, can't load it.");
                     _pendingRestore = null;
                     return false;
                 }
@@ -182,13 +174,13 @@ namespace Nusantara.SaveSystem
             }
         }
 
-        // ── Capture ───────────────────────────────────────────────────────────
+        // --- Capturing the snapshot ---
 
         private static SaveData Capture()
         {
             var data = new SaveData { saveVersion = SaveData.CurrentVersion };
 
-            // Player position + scene.
+            // Where the player is, and which scene.
             var player = UnityEngine.Object.FindFirstObjectByType<PlayerController>();
             if (player != null)
             {
@@ -197,11 +189,11 @@ namespace Nusantara.SaveSystem
             }
             else
             {
-                Debug.LogWarning("[SaveManager] No PlayerController found at save time — position not captured.");
+                Debug.LogWarning("[SaveManager] No PlayerController around at save time, so position didn't get captured.");
             }
             data.player.sceneName = SceneManager.GetActiveScene().name;
 
-            // Party.
+            // The party.
             var party = UnityEngine.Object.FindFirstObjectByType<PartySystem>();
             if (party != null)
             {
@@ -210,7 +202,7 @@ namespace Nusantara.SaveSystem
                     string id = m.Base != null ? m.Base.Id : null;
                     if (string.IsNullOrEmpty(id))
                     {
-                        Debug.LogWarning($"[SaveManager] Party member '{m.Name}' has no CharacterData.Id — skipped. " +
+                        Debug.LogWarning($"[SaveManager] Party member '{m.Name}' has no CharacterData.Id, so we skipped them. " +
                                          "Add it to the GameDatabase / assign an id.");
                         continue;
                     }
@@ -227,16 +219,16 @@ namespace Nusantara.SaveSystem
                 }
             }
 
-            // World (static, multi-region).
+            // The world (static, split by region).
             data.world = DefeatedEnemyRegistry.Export();
 
-            // Modular systems.
+            // Any bolt-on systems get their turn.
             foreach (var p in participants) p.Capture(data);
 
             return data;
         }
 
-        // ── Restore (on scene load) ─────────────────────────────────────────────
+        // --- Restoring (when the scene loads) ---
 
         private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
@@ -244,14 +236,14 @@ namespace Nusantara.SaveSystem
             if (scene.name != _pendingRestore.player.sceneName) return;
 
             var data = _pendingRestore;
-            _pendingRestore = null;  // one-shot
+            _pendingRestore = null;  // only do this once
 
-            // Party.
+            // The party.
             var party = UnityEngine.Object.FindFirstObjectByType<PartySystem>();
             if (party != null) party.LoadFromSave(data.party.members);
-            else Debug.LogWarning("[SaveManager] No PartySystem in loaded scene — party not restored.");
+            else Debug.LogWarning("[SaveManager] No PartySystem in the loaded scene, so the party didn't get restored.");
 
-            // Player position (CharacterController must be toggled to move the transform).
+            // Player position. We toggle the CharacterController off/on to actually move the transform.
             var player = UnityEngine.Object.FindFirstObjectByType<PlayerController>();
             if (player != null)
             {
@@ -262,22 +254,22 @@ namespace Nusantara.SaveSystem
                 if (cc != null) cc.enabled = true;
             }
 
-            // Modular systems.
+            // Bolt-on systems.
             foreach (var p in participants) p.Restore(data);
 
-            Debug.Log($"[SaveManager] Restored save into scene '{scene.name}'.");
+            Debug.Log($"[SaveManager] Restored the save into scene '{scene.name}'.");
         }
 
-        // ── Versioning / migration ──────────────────────────────────────────────
+        // --- Versioning / migration ---
 
         private static SaveData Migrate(SaveData data)
         {
             if (data.saveVersion == SaveData.CurrentVersion) return data;
 
-            Debug.Log($"[SaveManager] Migrating save v{data.saveVersion} → v{SaveData.CurrentVersion}.");
+            Debug.Log($"[SaveManager] Migrating save v{data.saveVersion} to v{SaveData.CurrentVersion}.");
 
-            // v1 → v2: PartyMemberSaveData gained currentMp. Old saves have no value;
-            // mark them "unset" (-1) so restore fills MP to max rather than to 0.
+            // v1 to v2: PartyMemberSaveData got currentMp. Old saves have no value, so mark
+            // them "unset" (-1) and restore fills MP up to max instead of leaving it at 0.
             if (data.saveVersion < 2)
             {
                 if (data.party?.members != null)
@@ -286,9 +278,9 @@ namespace Nusantara.SaveSystem
                 data.saveVersion = 2;
             }
 
-            // v2 → v3: members gained equippedSkillIds + isActive. Legacy members have
-            // neither — leave equippedSkillIds empty (→ default loadout) and force
-            // isActive true so the whole party fights (old behavior was "all healthy").
+            // v2 to v3: members got equippedSkillIds + isActive. Old members have neither,
+            // so leave equippedSkillIds empty (that means default loadout) and force isActive
+            // true so the whole party fights (the old behaviour was "all healthy members").
             if (data.saveVersion < 3)
             {
                 if (data.party?.members != null)
@@ -300,9 +292,9 @@ namespace Nusantara.SaveSystem
                 data.saveVersion = 3;
             }
 
-            // v3 → v4: members gained level + currentExp. Legacy members have neither —
-            // leave level = 0 (→ PartyMember restore falls back to StartingLevel) and
-            // currentExp = 0 so old saves load at their characters' starting level.
+            // v3 to v4: members got level + currentExp. Old members have neither, so leave
+            // level = 0 (PartyMember restore then falls back to StartingLevel) and
+            // currentExp = 0, so old saves load at their characters' starting level.
             if (data.saveVersion < 4)
             {
                 if (data.party?.members != null)
@@ -318,9 +310,9 @@ namespace Nusantara.SaveSystem
             return data;
         }
 
-        // ── IO helpers ────────────────────────────────────────────────────────
+        // --- File helpers ---
 
-        /// <summary>Write via a temp file then replace, so a crash mid-write can't corrupt the live save.</summary>
+        // Write to a temp file, then swap it in. That way a crash mid-write can't trash the live save.
         private static void AtomicWrite(string path, string contents)
         {
             string tmp = path + ".tmp";

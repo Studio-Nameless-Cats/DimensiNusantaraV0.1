@@ -348,8 +348,8 @@ MonoBehaviour:
   - {fileID: 0}
   - {fileID: 0}
   alertBubble: {fileID: 1778572570129996470}
-  spriteRenderer: {fileID: 0}
-  visualAnimator: {fileID: 0}
+  spriteRenderer: {fileID: 216141977825254079}
+  visualAnimator: {fileID: 6797761848070506830}
 --- !u!114 &9215195531282629896
 MonoBehaviour:
   m_ObjectHideFlags: 0

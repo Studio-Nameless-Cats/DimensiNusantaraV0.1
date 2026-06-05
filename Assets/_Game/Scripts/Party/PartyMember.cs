@@ -2,16 +2,15 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-/// <summary>
-/// A runtime instance of a character — tracks current HP and other mutable state.
-/// Created from CharacterData at game start or when a character joins the party.
-/// </summary>
+// The live, in-game version of a character. Tracks current HP and all the other stuff
+// that changes during play. We build one from a CharacterData at game start, or when a
+// character joins the party.
 public class PartyMember
 {
-    /// <summary>Max value of the per-battle Special gauge (fills as the fight goes).</summary>
+    // The top of the per-battle Special gauge (it fills up as the fight goes on).
     public const int SpecialMax = 100;
 
-    /// <summary>How many NORMAL skills a member may bring into battle at once (loadout size).</summary>
+    // How many NORMAL skills a member can bring into battle at once (the loadout size).
     public const int MaxEquippedSkills = 4;
 
     private readonly CharacterData _base;
@@ -26,11 +25,11 @@ public class PartyMember
     // character, so they're NOT part of the loadout. Persisted via skill ids.
     private readonly List<SkillData> equippedSkills = new List<SkillData>();
 
-    // Active status effects (buffs/debuffs). Battle-only: cleared at battle start
-    // (same lifecycle as the Special gauge) and NOT serialized.
+    // Active status effects (buffs/debuffs). Battle-only: wiped at battle start (same
+    // lifecycle as the Special gauge) and never saved.
     private readonly List<StatusEffectInstance> statuses = new List<StatusEffectInstance>();
 
-    /// <summary>Whether this member is selected to fight (vs sit in reserve). Default true.</summary>
+    // Whether this member is picked to fight or sit on the bench. Defaults to true.
     public bool IsActiveInBattle { get; set; } = true;
 
     public PartyMember(CharacterData characterData)
@@ -43,25 +42,20 @@ public class PartyMember
         InitDefaultLoadout();
     }
 
-    /// <summary>Rebuild a member from saved state — restores exact current HP (clamped). MP starts full.</summary>
+    // Rebuild a member from a save: restores their exact current HP (clamped). MP comes back full.
     public PartyMember(CharacterData characterData, int savedHp)
         : this(characterData, savedHp, -1) { }
 
-    /// <summary>
-    /// Rebuild a member from saved state — restores current HP and MP (both clamped).
-    /// Pass savedMp = -1 to restore MP to full (used for legacy v1 saves with no MP field).
-    /// Level/EXP fall back to the character's starting level (legacy saves with no level).
-    /// </summary>
+    // Rebuild a member from a save: restores current HP and MP (both clamped). Pass
+    // savedMp = -1 to fill MP up to full (that's what old v1 saves with no MP field do).
+    // Level/EXP fall back to the character's starting level (for old saves with no level).
     public PartyMember(CharacterData characterData, int savedHp, int savedMp)
         : this(characterData, savedHp, savedMp, 0, 0) { }
 
-    /// <summary>
-    /// Rebuild a member from saved state — restores HP, MP, level and EXP (all clamped).
-    /// Pass savedMp = -1 to restore MP to full; pass savedLevel &lt;= 0 to fall back to the
-    /// character's StartingLevel (legacy saves with no level field). Equipped loadout
-    /// defaults to the first MaxEquippedSkills of the (unlocked) pool; call
-    /// <see cref="RestoreLoadout"/> afterwards to apply a saved loadout.
-    /// </summary>
+    // Rebuild a member from a save: restores HP, MP, level and EXP (all clamped). Pass
+    // savedMp = -1 to fill MP to full; pass savedLevel <= 0 to fall back to the character's
+    // StartingLevel (for old saves with no level field). The equipped loadout starts as the
+    // first MaxEquippedSkills of the unlocked pool; call RestoreLoadout afterwards to apply a saved one.
     public PartyMember(CharacterData characterData, int savedHp, int savedMp, int savedLevel, int savedExp)
     {
         _base      = characterData;
@@ -69,65 +63,65 @@ public class PartyMember
                        ? Mathf.Clamp(savedLevel, 1, LevelCurve.MaxLevel)
                        : Mathf.Clamp(characterData.StartingLevel, 1, LevelCurve.MaxLevel);
         currentExp = Mathf.Max(0, savedExp);
-        currentHp  = Mathf.Clamp(savedHp, 0, MaxHp);   // MaxHp is level-scaled — level first
+        currentHp  = Mathf.Clamp(savedHp, 0, MaxHp);   // MaxHp is level-scaled, so set level first
         currentMp  = savedMp < 0 ? MaxMp : Mathf.Clamp(savedMp, 0, MaxMp);
         InitDefaultLoadout();
     }
 
-    // ── Stats (level-scaled) ──────────────────────────────────────────────────
-    // Level 1 = the CharacterData base values; each level beyond adds the growth
-    // amounts. Enemies (StartingLevel 1) are unaffected, so existing balance holds.
+    // --- Stats (scaled by level) ---
+    // Level 1 = the raw CharacterData base values; every level past that adds the growth
+    // amounts. Enemies (StartingLevel 1) aren't touched, so the existing balance holds.
     private int Bonus(int perLevel) => perLevel * (level - 1);
 
     public CharacterData Base   => _base;
     public string Name          => _base.Name;
-    public int MaxHp            => _base.MaxHp   + Bonus(_base.HpGrowth);   // status effects never change max pools
+    public int MaxHp            => _base.MaxHp   + Bonus(_base.HpGrowth);   // statuses never touch the max pools
     public int MaxMp            => _base.MaxMp   + Bonus(_base.MpGrowth);
-    // Attack/Defense/Speed are level-scaled AND modulated by active status multipliers
-    // (Slow/Haste, Weaken/Rage, Guard/Break). With no statuses the multiplier is 1, so
-    // these read exactly as before — fully additive.
+    // Attack/Defense/Speed scale with level AND get bent by any active status multipliers
+    // (Slow/Haste, Weaken/Rage, Guard/Break). With no statuses the multiplier is just 1, so
+    // these read exactly like before. Fully additive.
     public int Attack           => Mathf.Max(0, Mathf.RoundToInt((_base.Attack  + Bonus(_base.AttackGrowth))  * StatusMult(StatModifier.Attack)));
     public int Defense          => Mathf.Max(1, Mathf.RoundToInt((_base.Defense + Bonus(_base.DefenseGrowth)) * StatusMult(StatModifier.Defense)));
     public int Speed            => Mathf.Max(0, Mathf.RoundToInt((_base.Speed   + Bonus(_base.SpeedGrowth))   * StatusMult(StatModifier.Speed)));
 
-    // ── Level & EXP ───────────────────────────────────────────────────────────
+    // --- Level & EXP ---
     public int  Level          => level;
     public int  CurrentExp     => currentExp;
-    /// <summary>EXP needed to advance from the current level to the next (int.MaxValue at cap).</summary>
+    // EXP needed to go from the current level to the next one (int.MaxValue at the cap).
     public int  ExpToNextLevel => LevelCurve.ExpToNext(level);
     public bool IsMaxLevel     => level >= LevelCurve.MaxLevel;
-    /// <summary>0..1 fill for an EXP bar. Always 1 at the cap.</summary>
+    // 0..1 fill for an EXP bar. Always 1 at the cap.
     public float ExpNormalized => IsMaxLevel ? 1f : Mathf.Clamp01((float)currentExp / ExpToNextLevel);
 
-    // ── Skills (loadout-aware + level-gated) ──────────────────────────────────
-    // Battle reads these, NOT Base.Skills directly: Skills = the equipped subset
-    // (only those unlocked at the current level); SpecialSkills = the character's
-    // fixed special list, filtered by unlock level.
+    // --- Skills (loadout-aware + level-gated) ---
+    // Battle reads these, NOT Base.Skills directly: Skills = the equipped subset (only the
+    // ones unlocked at the current level); SpecialSkills = the character's fixed special
+    // list, also filtered by unlock level.
     public IReadOnlyList<SkillData> Skills        => equippedSkills.Where(IsUnlocked).ToList();
     public IReadOnlyList<SkillData> SpecialSkills => _base.SpecialSkills.Where(IsUnlocked).ToList();
 
-    /// <summary>The pool of NORMAL skills this character can choose to equip, gated by level.</summary>
+    // The pool of NORMAL skills this character is allowed to equip, gated by level.
     public IReadOnlyList<SkillData> SkillPool => _base.Skills.Where(IsUnlocked).ToList();
 
-    /// <summary>True if this member's level meets the skill's unlock requirement.</summary>
+    // True if this member is high enough level for the skill's unlock requirement.
     public bool IsUnlocked(SkillData s) => s != null && level >= s.UnlockLevel;
 
     public int  EquippedCount         => equippedSkills.Count;
     public bool IsEquipped(SkillData s) => s != null && equippedSkills.Contains(s);
     public bool CanEquipMore           => equippedSkills.Count < MaxEquippedSkills;
 
-    // ── Mutable state ────────────────────────────────────────────────────────
+    // --- The stuff that changes ---
     public int CurrentHp => currentHp;
     public int CurrentMp => currentMp;
     public int CurrentSpecial => currentSpecial;
     public bool IsFainted => currentHp <= 0;
 
-    // ── Resources (MP + Special gauge) ────────────────────────────────────────
+    // --- Resources (MP + Special gauge) ---
 
     public bool CanAffordMp(int cost)      => currentMp >= cost;
     public bool CanAffordSpecial(int cost) => currentSpecial >= cost;
 
-    /// <summary>Spend MP if affordable. Returns false (and spends nothing) if too poor.</summary>
+    // Spend MP if we can afford it. Returns false (and spends nothing) if we're too broke.
     public bool SpendMp(int cost)
     {
         if (cost <= 0) return true;
@@ -136,7 +130,7 @@ public class PartyMember
         return true;
     }
 
-    /// <summary>Spend Special-gauge points if affordable. Returns false if not charged enough.</summary>
+    // Spend Special-gauge points if we have enough. Returns false if it's not charged enough.
     public bool SpendSpecial(int cost)
     {
         if (cost <= 0) return true;
@@ -145,13 +139,13 @@ public class PartyMember
         return true;
     }
 
-    /// <summary>Add to the Special gauge (clamped to SpecialMax). Call as the battle progresses.</summary>
+    // Charge up the Special gauge (capped at SpecialMax). Call this as the fight goes on.
     public void AddSpecial(int amount)
     {
         currentSpecial = Mathf.Clamp(currentSpecial + Mathf.Abs(amount), 0, SpecialMax);
     }
 
-    /// <summary>Reset the Special gauge to empty — call at the start of each battle.</summary>
+    // Empty the Special gauge. Call this at the start of every battle.
     public void ResetSpecial() => currentSpecial = 0;
 
     public void RestoreMp(int amount)
@@ -159,14 +153,11 @@ public class PartyMember
         currentMp = Mathf.Min(MaxMp, currentMp + Mathf.Abs(amount));
     }
 
-    // ── Combat ───────────────────────────────────────────────────────────────
+    // --- Combat ---
 
-    /// <summary>
-    /// Calculates and applies damage from an attacker.
-    /// Returns the final damage dealt.
-    /// Formula: damage = (attacker.Attack * 2) / max(1, this.Defense) * multiplier
-    /// Pass multiplier = 2f for a critical hit.
-    /// </summary>
+    // Works out and applies damage from an attacker, and returns how much it dealt.
+    // Formula: damage = (attacker.Attack * 2) / max(1, this.Defense) * multiplier
+    // Pass multiplier = 2f for a critical hit.
     public int TakeDamage(int attackerAttack, float multiplier = 1f)
     {
         float raw    = (attackerAttack * 2f) / Mathf.Max(1f, Defense);
@@ -176,12 +167,12 @@ public class PartyMember
         return damage;
     }
 
-    // ── Healing ──────────────────────────────────────────────────────────────
+    // --- Healing ---
 
     public void HealFull()
     {
         currentHp = MaxHp;
-        currentMp = MaxMp; // rest restores MP too
+        currentMp = MaxMp; // resting tops up MP too
     }
 
     public void Heal(int amount)
@@ -189,15 +180,12 @@ public class PartyMember
         currentHp = Mathf.Min(MaxHp, currentHp + Mathf.Abs(amount));
     }
 
-    // ── Experience / leveling ──────────────────────────────────────────────────
+    // --- EXP / leveling up ---
 
-    /// <summary>
-    /// Grant EXP and resolve any level-ups. Returns the list of NEW levels reached
-    /// (empty if none) so the caller can announce "naik ke Level X!". Each level-up
-    /// grows the stat pools; the gained HP/MP is added to the current values too (a
-    /// small heal), so leveling mid-battle feels rewarding without a full restore.
-    /// No-op at the level cap.
-    /// </summary>
+    // Hand over some EXP and sort out any level-ups. Returns the list of NEW levels hit
+    // (empty if none) so the caller can shout "naik ke Level X!". Each level-up grows the
+    // stat pools, and the gained HP/MP gets added to the current values too (a little heal),
+    // so leveling mid-fight feels good without being a full restore. Does nothing at the cap.
     public List<int> AddExp(int amount)
     {
         var gained = new List<int>();
@@ -211,18 +199,18 @@ public class PartyMember
             level++;                              // MaxHp/MaxMp now reflect the new level
             gained.Add(level);
 
-            // Grow the live pools by this level's gain (clamped to the new maxima).
+            // Bump the live pools up by this level's growth (capped at the new maxima).
             currentHp = Mathf.Min(MaxHp, currentHp + _base.HpGrowth);
             currentMp = Mathf.Min(MaxMp, currentMp + _base.MpGrowth);
         }
 
-        if (IsMaxLevel) currentExp = 0;           // no bar past the cap
+        if (IsMaxLevel) currentExp = 0;           // no bar to show past the cap
         return gained;
     }
 
-    // ── Loadout editing ────────────────────────────────────────────────────────
+    // --- Editing the loadout ---
 
-    /// <summary>Default loadout = the first MaxEquippedSkills of the character's pool.</summary>
+    // The default loadout is just the first MaxEquippedSkills of the character's pool.
     private void InitDefaultLoadout()
     {
         equippedSkills.Clear();
@@ -235,27 +223,23 @@ public class PartyMember
         }
     }
 
-    /// <summary>
-    /// Equip a normal skill (must belong to this character's pool, and the loadout
-    /// must not be full). Returns true if it's now equipped.
-    /// </summary>
+    // Equip a normal skill. It has to belong to this character's pool, and the loadout
+    // can't already be full. Returns true if it ends up equipped.
     public bool Equip(SkillData skill)
     {
         if (skill == null) return false;
         if (equippedSkills.Contains(skill)) return true;
         if (!_base.Skills.Contains(skill)) return false;   // not one of this character's skills
-        if (!IsUnlocked(skill)) return false;              // level-gated — not learned yet
+        if (!IsUnlocked(skill)) return false;              // level-locked, not learned yet
         if (equippedSkills.Count >= MaxEquippedSkills) return false;
         equippedSkills.Add(skill);
         return true;
     }
 
-    /// <summary>Remove a skill from the equipped loadout. Returns true if it was equipped.</summary>
+    // Take a skill out of the loadout. Returns true if it was actually equipped.
     public bool Unequip(SkillData skill) => equippedSkills.Remove(skill);
 
-    /// <summary>
-    /// Toggle a skill's equipped state, honoring the cap. Returns the new equipped state.
-    /// </summary>
+    // Flip a skill on or off, respecting the cap. Returns the new equipped state.
     public bool ToggleEquip(SkillData skill)
     {
         if (skill == null) return false;
@@ -263,16 +247,14 @@ public class PartyMember
         return Equip(skill);
     }
 
-    /// <summary>Stable ids of the currently-equipped skills, in order — for saving.</summary>
+    // The ids of the currently-equipped skills, in order. Used when saving.
     public List<string> GetEquippedIds()
         => equippedSkills.Where(s => s != null && !string.IsNullOrEmpty(s.Id))
                          .Select(s => s.Id).ToList();
 
-    /// <summary>
-    /// Restore the equipped loadout from saved skill ids, resolved against this
-    /// character's own pool. Unknown ids are dropped; a null/empty list (or one that
-    /// resolves to nothing) falls back to the default loadout. Honors the cap.
-    /// </summary>
+    // Rebuild the equipped loadout from saved skill ids, matched against this character's
+    // own pool. Ids we don't recognise just get dropped; a null/empty list (or one that
+    // matches nothing) falls back to the default loadout. Respects the cap.
     public void RestoreLoadout(List<string> equippedIds)
     {
         if (equippedIds == null || equippedIds.Count == 0) { InitDefaultLoadout(); return; }
@@ -289,14 +271,14 @@ public class PartyMember
             }
         }
 
-        if (equippedSkills.Count == 0) InitDefaultLoadout();   // saved set no longer resolves
+        if (equippedSkills.Count == 0) InitDefaultLoadout();   // none of the saved ones matched
     }
 
-    // ── Status effects (battle-only) ────────────────────────────────────────────
+    // --- Status effects (battle-only) ---
 
     private enum StatModifier { Attack, Defense, Speed }
 
-    /// <summary>Product of every active status's multiplier for one stat (1 if none).</summary>
+    // Multiplies together every active status's multiplier for one stat (1 if there are none).
     private float StatusMult(StatModifier which)
     {
         float m = 1f;
@@ -314,21 +296,19 @@ public class PartyMember
         return m;
     }
 
-    /// <summary>Read-only view of the active status effects (for HUD icons).</summary>
+    // Read-only peek at the active status effects (the HUD icons use this).
     public IReadOnlyList<StatusEffectInstance> Statuses => statuses;
     public bool HasStatuses => statuses.Count > 0;
 
-    /// <summary>True if any active status prevents this unit from acting (Stun / Freeze).</summary>
+    // True if any active status is stopping this unit from acting (Stun / Freeze).
     public bool IsStunned => statuses.Any(s => s.Data != null && s.Data.PreventsAction);
 
-    /// <summary>Remove all status effects. Call at battle start (statuses don't persist between fights).</summary>
+    // Wipe all status effects. Call at battle start (statuses don't carry between fights).
     public void ClearStatuses() => statuses.Clear();
 
-    /// <summary>
-    /// Apply a status to this member. If the same status is already active it is
-    /// refreshed to full duration (when the data allows) rather than duplicated.
-    /// Returns true if it was NEWLY added (false if it merely refreshed an existing one).
-    /// </summary>
+    // Slap a status onto this member. If they already have that exact status, we refresh
+    // its duration back to full (when the data allows it) instead of stacking a duplicate.
+    // Returns true if it was freshly added, false if it just refreshed an existing one.
     public bool ApplyStatus(StatusEffectData data)
     {
         if (data == null) return false;
@@ -344,14 +324,12 @@ public class PartyMember
         return true;
     }
 
-    /// <summary>
-    /// Resolve start-of-turn status bookkeeping for this member, in order:
-    ///   1. apply each status's per-turn HP change (DoT / regen) — clamped to 0..MaxHp;
-    ///   2. capture whether the unit is stunned THIS turn (before counting down, so a
-    ///      stun spends its final turn);
-    ///   3. count every status down by one turn and drop the expired ones.
-    /// Returns a <see cref="StatusTurnReport"/> the caller narrates. UI-agnostic.
-    /// </summary>
+    // Handle all the start-of-turn status bookkeeping for this member, in this order:
+    //   1. apply each status's per-turn HP change (poison/regen), clamped to 0..MaxHp;
+    //   2. note whether the unit is stunned THIS turn (before we count down, so a stun
+    //      actually spends its last turn);
+    //   3. tick every status down by one turn and drop the ones that ran out.
+    // Returns a StatusTurnReport for the caller to narrate. Doesn't care about any UI.
     public StatusTurnReport ProcessTurnStart()
     {
         var report = new StatusTurnReport();
@@ -359,7 +337,7 @@ public class PartyMember
 
         report.WasStunned = IsStunned;
 
-        // 1) per-turn HP tick
+        // 1) the per-turn HP tick
         foreach (var s in statuses)
         {
             int delta = s.Data != null ? s.Data.DamagePerTurn : 0;
@@ -367,14 +345,14 @@ public class PartyMember
 
             int before = currentHp;
             currentHp = delta > 0
-                ? Mathf.Max(0, currentHp - delta)        // DoT
-                : Mathf.Min(MaxHp, currentHp - delta);   // regen (delta < 0 → adds)
+                ? Mathf.Max(0, currentHp - delta)        // poison/burn hurts
+                : Mathf.Min(MaxHp, currentHp - delta);   // regen heals (delta is negative, so this adds)
 
-            int applied = currentHp - before;            // <0 damage, >0 heal
+            int applied = currentHp - before;            // negative = damage, positive = heal
             if (applied != 0) report.Ticks.Add(new StatusTick(s.Data, applied));
         }
 
-        // 2 & 3) count down and expire
+        // 2 & 3) count everyone down and drop the expired ones
         for (int i = statuses.Count - 1; i >= 0; i--)
         {
             if (statuses[i].Tick() <= 0)

@@ -4,10 +4,7 @@ using System.Linq;
 using UnityEngine;
 using Nusantara.SaveSystem;
 
-/// <summary>
-/// Manages the player's party of characters.
-/// Attach this to the Player GameObject.
-/// </summary>
+// Looks after the player's party of characters. Stick this on the Player GameObject.
 public class PartySystem : MonoBehaviour
 {
     [Header("Starting Party")]
@@ -19,21 +16,19 @@ public class PartySystem : MonoBehaviour
              "Should match the number of player spawn points on the Battle scene's BattleSystem.")]
     [SerializeField] private int maxActiveBattle = 3;
 
-    // ⚠️ STATIC so the party SURVIVES scene reloads. Every battle reloads the
-    // overworld scene, which destroys + recreates the Player (and this component).
-    // If members were an instance field it would rebuild to full HP on every battle
-    // return, throwing away battle damage AND any recruited members. Keeping the
-    // list static (same pattern as DefeatedEnemyRegistry) makes the PartyMember
-    // objects persist across scene loads — battle damage and recruits stick.
+    // This is STATIC on purpose so the party survives scene reloads. Every battle reloads
+    // the overworld scene, which destroys and recreates the Player (and this component
+    // with it). If 'members' were a normal instance field, it'd rebuild to full HP every
+    // time you came back from a battle, throwing away all the damage taken AND any members
+    // you recruited. Keeping the list static (same trick as DefeatedEnemyRegistry) lets the
+    // PartyMember objects live through scene loads, so damage and recruits actually stick.
     private static readonly List<PartyMember> members = new List<PartyMember>();
     private static bool initialized;
 
     public event Action OnPartyUpdated;
 
-    // ── Unity lifecycle ──────────────────────────────────────────────────────
-
-    // Statics survive editor "Enter Play Mode (no domain reload)" — clear them at
-    // the start of every Play session so a fresh run never inherits a stale party.
+    // Statics survive the editor's "Enter Play Mode (no domain reload)" option, so clear
+    // them at the start of every Play session, otherwise a fresh run inherits a stale party.
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void ResetStaticsOnPlay()
     {
@@ -43,8 +38,8 @@ public class PartySystem : MonoBehaviour
 
     void Awake()
     {
-        // Only build the starting party ONCE per game. On later scene loads the
-        // party already exists in the static list (with its current HP) — keep it.
+        // Build the starting party only ONCE per game. On later scene loads the party's
+        // already sitting in the static list (with its current HP), so leave it alone.
         if (initialized) return;
         BuildStartingParty();
     }
@@ -60,41 +55,39 @@ public class PartySystem : MonoBehaviour
         initialized = true;
     }
 
-    /// <summary>Wipes the persistent party so the next scene rebuilds the starting party. Call on New Game.</summary>
+    // Wipes the persistent party so the next scene rebuilds the starting party. Call on New Game.
     public static void ResetParty()
     {
         members.Clear();
         initialized = false;
     }
 
-    // ── Party queries ────────────────────────────────────────────────────────
+    // --- Asking about the party ---
 
     public List<PartyMember> Members         => members;
     public List<PartyMember> HealthyMembers  => members.Where(m => !m.IsFainted).ToList();
     public bool HasHealthyMember             => members.Any(m => !m.IsFainted);
     public int Count                         => members.Count;
 
-    // ── Battle selection (active vs reserve) ──────────────────────────────────
+    // --- Picking who fights (active vs reserve) ---
 
-    /// <summary>Max members allowed to be active (sent into battle) at once.</summary>
+    // Most members that can be active (sent into battle) at once.
     public int MaxActiveBattle => maxActiveBattle;
 
-    /// <summary>Members flagged to fight (regardless of HP).</summary>
+    // Members marked to fight, no matter their HP.
     public List<PartyMember> ActiveBattleMembers => members.Where(m => m.IsActiveInBattle).ToList();
 
-    /// <summary>Active AND healthy members — what actually spawns into battle.</summary>
+    // Active AND healthy members. This is who actually spawns into battle.
     public List<PartyMember> ActiveHealthyBattleMembers
         => members.Where(m => m.IsActiveInBattle && !m.IsFainted).ToList();
 
     public int ActiveCount  => members.Count(m => m.IsActiveInBattle);
     public bool CanActivateMore => ActiveCount < maxActiveBattle;
 
-    /// <summary>
-    /// Set a member's active/reserve state, enforcing the rules:
-    ///  • can't exceed <see cref="maxActiveBattle"/> active members;
-    ///  • can't deactivate the last remaining active member (someone must fight).
-    /// Returns true if the state changed.
-    /// </summary>
+    // Mark a member active or benched, with two rules:
+    //  - can't go over maxActiveBattle active members;
+    //  - can't bench the last active member (somebody has to fight).
+    // Returns true if the state actually changed.
     public bool SetActive(PartyMember member, bool active)
     {
         if (member == null || !members.Contains(member)) return false;
@@ -102,11 +95,11 @@ public class PartySystem : MonoBehaviour
 
         if (active)
         {
-            if (ActiveCount >= maxActiveBattle) return false;   // party full
+            if (ActiveCount >= maxActiveBattle) return false;   // already full
         }
         else
         {
-            if (ActiveCount <= 1) return false;                 // keep at least one fighter
+            if (ActiveCount <= 1) return false;                 // gotta keep at least one fighter
         }
 
         member.IsActiveInBattle = active;
@@ -114,23 +107,20 @@ public class PartySystem : MonoBehaviour
         return true;
     }
 
-    /// <summary>Toggle a member's active state under the same rules as <see cref="SetActive"/>.</summary>
+    // Flip a member's active state, following the same rules as SetActive.
     public bool ToggleActive(PartyMember member)
         => member != null && SetActive(member, !member.IsActiveInBattle);
 
-    // ── Party management ─────────────────────────────────────────────────────
+    // --- Managing the party ---
 
-    /// <summary>
-    /// Adds a new character to the party (max 4 members).
-    /// Returns true if the character was added successfully.
-    /// </summary>
+    // Add a new character to the party (max 4). Returns true if it actually got added.
     public bool AddMember(CharacterData characterData)
     {
         if (characterData == null) return false;
 
         if (members.Count >= 4)
         {
-            Debug.Log("[PartySystem] Party is full — cannot add more members.");
+            Debug.Log("[PartySystem] Party's full, can't add anyone else.");
             return false;
         }
 
@@ -139,11 +129,9 @@ public class PartySystem : MonoBehaviour
         return true;
     }
 
-    /// <summary>
-    /// Replaces the entire party from saved data. Resolves each saved characterId
-    /// back to its CharacterData via <see cref="GameDatabase"/>, rebuilding members
-    /// with their saved HP. Called by SaveManager right after the scene loads.
-    /// </summary>
+    // Swap the whole party out for one loaded from a save. It looks up each saved
+    // characterId in the GameDatabase and rebuilds the members with their saved HP.
+    // SaveManager calls this right after the scene loads.
     public void LoadFromSave(List<PartyMemberSaveData> saved)
     {
         members.Clear();
@@ -156,7 +144,7 @@ public class PartySystem : MonoBehaviour
                 var data = db != null ? db.GetCharacter(entry.characterId) : null;
                 if (data == null)
                 {
-                    Debug.LogWarning($"[PartySystem] Saved character id '{entry.characterId}' not found in GameDatabase — skipped.");
+                    Debug.LogWarning($"[PartySystem] Saved character id '{entry.characterId}' isn't in the GameDatabase, so we skipped them.");
                     continue;
                 }
                 var member = new PartyMember(data, entry.currentHp, entry.currentMp, entry.level, entry.currentExp);
@@ -166,11 +154,11 @@ public class PartySystem : MonoBehaviour
             }
         }
 
-        initialized = true;   // loaded party is now the live party; don't rebuild on scene loads
+        initialized = true;   // the loaded party is the live party now; don't rebuild it on scene loads
         OnPartyUpdated?.Invoke();
     }
 
-    /// <summary>Fully restores HP of every party member.</summary>
+    // Heal every party member back to full HP.
     public void HealAll()
     {
         foreach (var member in members)

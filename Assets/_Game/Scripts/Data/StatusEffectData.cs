@@ -1,26 +1,24 @@
 using UnityEngine;
 
-/// <summary>
-/// ScriptableObject describing ONE status effect (buff or debuff) that can sit on a
-/// battle unit for a number of turns. Fully data-driven — one asset type models
-/// every common status by combining a few simple behaviours:
-///
-///   • Poison / Burn (DoT) → <see cref="damagePerTurn"/> &gt; 0  (HP lost each turn)
-///   • Regen             → <see cref="damagePerTurn"/> &lt; 0  (HP healed each turn)
-///   • Stun / Freeze     → <see cref="preventsAction"/> = true (skips the unit's turn)
-///   • Slow              → <see cref="speedMultiplier"/> &lt; 1 (drops initiative)
-///   • Haste             → <see cref="speedMultiplier"/> &gt; 1 (raises initiative)
-///   • Weaken / Rage     → <see cref="attackMultiplier"/>  (scales outgoing damage)
-///   • Guard / Break     → <see cref="defenseMultiplier"/> (scales incoming damage)
-///
-/// A single status may combine several of these (e.g. a curse that both poisons and
-/// weakens). The per-turn HP tick happens at the START of the affected unit's turn;
-/// the stat multipliers apply continuously while the status is active.
-///
-/// Create via: Right-click in Project → RPG → Status Effect Data.
-/// Apply one from a skill by setting the skill's Effect Type to "Apply Status" (or by
-/// assigning a Status Effect rider on a Damage/Heal skill).
-/// </summary>
+// A ScriptableObject describing ONE status effect (a buff or a debuff) that can sit on a
+// battle unit for a few turns. It's fully data-driven: this one asset type covers every
+// common status just by mixing a handful of simple behaviours:
+//
+//   - Poison / Burn (damage over time): damagePerTurn > 0  (lose HP each turn)
+//   - Regen:                            damagePerTurn < 0  (heal HP each turn)
+//   - Stun / Freeze:                    preventsAction = true (skips the unit's turn)
+//   - Slow:                             speedMultiplier < 1 (lower initiative)
+//   - Haste:                            speedMultiplier > 1 (higher initiative)
+//   - Weaken / Rage:                    attackMultiplier  (scales the damage you deal)
+//   - Guard / Break:                    defenseMultiplier (scales the damage you take)
+//
+// One status can mix several of these (say, a curse that poisons AND weakens). The
+// per-turn HP tick happens at the START of the affected unit's turn; the stat multipliers
+// just apply the whole time the status is active.
+//
+// Make one with: Right-click in Project -> RPG -> Status Effect Data.
+// Apply it from a skill by setting the skill's Effect Type to "Apply Status" (or by giving
+// a Damage/Heal skill a Status Effect rider).
 [CreateAssetMenu(fileName = "New Status", menuName = "RPG/Status Effect Data")]
 public class StatusEffectData : ScriptableObject
 {
@@ -52,14 +50,13 @@ public class StatusEffectData : ScriptableObject
     [SerializeField] private float attackMultiplier = 1f;
     [Tooltip("Multiplier on the unit's Defense. <1 = takes more damage (armor break), >1 = takes less (guard), 1 = no change.")]
     [SerializeField] private float defenseMultiplier = 1f;
-    [Tooltip("Multiplier on the unit's Speed → affects turn-order initiative (re-sorted each round) and run chance. <1 = Slow, >1 = Haste, 1 = no change.")]
+    [Tooltip("Multiplier on the unit's Speed, which affects turn-order initiative (re-sorted each round) and run chance. <1 = Slow, >1 = Haste, 1 = no change.")]
     [SerializeField] private float speedMultiplier = 1f;
 
     [Header("Stacking")]
     [Tooltip("If true, re-applying this status to a unit that already has it refreshes the duration back to full instead of being ignored.")]
     [SerializeField] private bool refreshOnReapply = true;
 
-    // ── Properties ──────────────────────────────────────────────────────────
     public string Name              => statusName;
     public Sprite Icon              => icon;
     public string Description       => description;
@@ -69,14 +66,15 @@ public class StatusEffectData : ScriptableObject
     public int    DamagePerTurn     => damagePerTurn;
     public bool   PreventsAction    => preventsAction;
     public float  AttackMultiplier  => Mathf.Max(0f, attackMultiplier);
-    public float  DefenseMultiplier => Mathf.Max(0.01f, defenseMultiplier); // never 0 → avoids divide-by-zero in the damage formula
+    public float  DefenseMultiplier => Mathf.Max(0.01f, defenseMultiplier); // keep it off 0 so the damage formula never divides by zero
     public float  SpeedMultiplier   => Mathf.Max(0f, speedMultiplier);
     public bool   RefreshOnReapply  => refreshOnReapply;
 
-    /// <summary>True if this status changes HP each turn (poison, burn, or regen).</summary>
+    // True if this status messes with HP every turn (poison, burn, or regen).
     public bool HasPerTurnTick => damagePerTurn != 0;
 
 #if UNITY_EDITOR
+    // Give this asset a stable GUID the first time it's made or inspected (editor-only).
     private void OnValidate()
     {
         if (string.IsNullOrEmpty(id))

@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using Nusantara.UI.Motion;
 
 namespace Nusantara.UI
 {
@@ -69,7 +70,13 @@ namespace Nusantara.UI
         [Header("Scene")]
         [SerializeField] private string mainMenuSceneName = "MainMenu";
 
+        [Header("Motion")]
+        [Tooltip("Animates the menu sliding in/out. Lives on menuRoot (or a child). Leave null for instant on/off.")]
+        [SerializeField] private PanelMotion panelMotion;
+
         private bool _open;
+        // true while the close slide-out is still playing, so we don't re-trigger it
+        private bool _closing;
 
         // ── Lifecycle ─────────────────────────────────────────────────────────
 
@@ -113,20 +120,47 @@ namespace Nusantara.UI
                 return;
 
             _open = true;
+            _closing = false;
             if (menuRoot != null) menuRoot.SetActive(true);
             GameController.Instance?.SetPaused(true);
 
             // Default to the first tab; hide transient sub-panels.
             CloseSubPanels();
             if (tabs.Count > 0) SelectTab(0);
+
+            // Slide everything in. PlayIn kills any leftover close tween, so opening
+            // mid-close just snaps back to opening - the close's "deactivate" callback
+            // won't fire because a killed tween doesn't complete.
+            if (panelMotion != null)
+            {
+                MotionEvents.RaiseMenuEnter();
+                panelMotion.PlayIn();
+            }
         }
 
         public void Close()
         {
+            if (!_open || _closing) return;
             _open = false;
             CloseSubPanels();
-            if (menuRoot != null) menuRoot.SetActive(false);
-            GameController.Instance?.SetPaused(false);
+
+            // No motion wired? Just snap it off the old way.
+            if (panelMotion == null)
+            {
+                if (menuRoot != null) menuRoot.SetActive(false);
+                GameController.Instance?.SetPaused(false);
+                return;
+            }
+
+            // Play the exit, then actually deactivate + unpause once it's gone.
+            _closing = true;
+            MotionEvents.RaiseCancel();
+            panelMotion.PlayOut(() =>
+            {
+                _closing = false;
+                if (menuRoot != null) menuRoot.SetActive(false);
+                GameController.Instance?.SetPaused(false);
+            });
         }
 
         private void CloseSubPanels()

@@ -4,19 +4,16 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>
-/// Dice Roll modal — interrupts Basic Attack to let the player roll a D20 for a critical hit.
-///
-/// Flow:
-///   1. BattleSystem calls Show() when a 30% crit chance triggers.
-///   2. Modal appears, timer counts down 3 seconds.
-///   3. Player taps [LEMPAR DADU] or timer runs out → auto-roll.
-///   4. Die animates, settles on a final value (1–20).
-///   5. Result ≥ critThreshold → Critical Hit (2× damage).
-///   6. Modal closes, onComplete(isCrit) fires back to BattleSystem.
-///
-/// Scene setup — see Unity Editor guide below.
-/// </summary>
+// The dice-roll popup. It cuts into a basic attack and lets the player roll a D20 to
+// try for a critical hit.
+//
+// How it goes:
+//   1. BattleSystem calls Show() when the crit chance rolls in our favour.
+//   2. The popup shows up and a 3-second timer starts ticking down.
+//   3. Player taps [LEMPAR DADU], or the timer runs out and it auto-rolls.
+//   4. The die spins through numbers, then lands on a value (1 to 20).
+//   5. Land on critThreshold or higher and it's a Critical Hit (double damage).
+//   6. Popup closes and onComplete(isCrit) reports back to BattleSystem.
 public class DiceRollUI : MonoBehaviour
 {
     [Header("Root")]
@@ -47,14 +44,10 @@ public class DiceRollUI : MonoBehaviour
     [Tooltip("Interval between number changes during animation.")]
     [SerializeField] private float rollAnimInterval = 0.05f;
 
-    // ── Colours ───────────────────────────────────────────────────────────────
     private static readonly Color CritColor   = new Color(1.00f, 0.85f, 0.10f); // gold
     private static readonly Color NormalColor = new Color(0.80f, 0.80f, 0.80f); // grey
 
-    // ── State ─────────────────────────────────────────────────────────────────
     private bool playerPressedRoll;
-
-    // ── Unity lifecycle ───────────────────────────────────────────────────────
 
     void Awake()
     {
@@ -62,15 +55,11 @@ public class DiceRollUI : MonoBehaviour
         rollButton?.onClick.AddListener(OnRollPressed);
     }
 
-    // ── Public API ────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Call from BattleSystem. Coroutine completes when the modal closes.
-    /// onComplete is called with true if crit, false if normal.
-    /// </summary>
+    // BattleSystem calls this. The coroutine finishes once the popup closes, and
+    // onComplete gets true for a crit, false for a normal hit.
     public IEnumerator Show(string attackerName, string targetName, Action<bool> onComplete)
     {
-        // ── Reset ─────────────────────────────────────────────────────────────
+        // Reset everything to a clean slate.
         playerPressedRoll = false;
 
         if (subtitleText)   subtitleText.text = $"{attackerName} menyerang {targetName}";
@@ -81,7 +70,7 @@ public class DiceRollUI : MonoBehaviour
 
         modalRoot.SetActive(true);
 
-        // ── Countdown ─────────────────────────────────────────────────────────
+        // Tick the timer down (or stop early if they tap the roll button).
         float elapsed = 0f;
         while (elapsed < timerDuration && !playerPressedRoll)
         {
@@ -95,41 +84,38 @@ public class DiceRollUI : MonoBehaviour
             yield return null;
         }
 
-        // ── Roll ──────────────────────────────────────────────────────────────
+        // Time to actually roll.
         if (rollButton) rollButton.interactable = false;
         if (autoRollHintText) autoRollHintText.text = "";
 
-        int rollResult = UnityEngine.Random.Range(1, 21); // 1–20 inclusive
+        int rollResult = UnityEngine.Random.Range(1, 21); // gives 1 to 20
         yield return StartCoroutine(AnimateDie(rollResult));
 
-        // ── Show result ───────────────────────────────────────────────────────
+        // Did we crit?
         bool isCrit = rollResult >= critThreshold;
 
         if (resultText)
         {
             resultText.gameObject.SetActive(true);
-            resultText.text  = isCrit ? "✦ CRITICAL HIT! ✦" : "Normal...";
+            resultText.text  = isCrit ? "CRITICAL HIT!" : "Normal...";
             resultText.color = isCrit ? CritColor : NormalColor;
         }
 
-        Debug.Log($"[DiceRollUI] Rolled {rollResult} (threshold {critThreshold}) → {(isCrit ? "CRITICAL" : "Normal")}");
+        Debug.Log($"[DiceRollUI] Rolled {rollResult} (threshold {critThreshold}) -> {(isCrit ? "CRITICAL" : "Normal")}");
 
         yield return new WaitForSeconds(1.2f);
 
-        // ── Close ─────────────────────────────────────────────────────────────
+        // All done, close up.
         modalRoot.SetActive(false);
         onComplete?.Invoke(isCrit);
     }
-
-    // ── Button callback ───────────────────────────────────────────────────────
 
     private void OnRollPressed()
     {
         playerPressedRoll = true;
     }
 
-    // ── Die animation ─────────────────────────────────────────────────────────
-
+    // Spins the die number for a bit, then lands it on the real value.
     private IEnumerator AnimateDie(int finalValue)
     {
         if (dieValueText == null) yield break;

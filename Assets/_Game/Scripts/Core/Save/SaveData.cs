@@ -4,19 +4,16 @@ using UnityEngine;
 
 namespace Nusantara.SaveSystem
 {
-    /// <summary>
-    /// Plain serializable snapshot of everything the game needs to restore a session.
-    /// Strongly typed and split into clear sections so JSON stays readable, diffable,
-    /// and versioned. Only MUTABLE state lives here — base stats stay in the assets.
-    ///
-    /// Versioning: <see cref="saveVersion"/> is the FIRST field. Bump
-    /// <see cref="CurrentVersion"/> whenever the shape changes and add a migration
-    /// step in SaveManager so old saves keep loading.
-    /// </summary>
+    // A plain serializable snapshot of everything we need to bring a session back to life.
+    // Strongly typed and split into clear sections so the JSON stays easy to read, diff,
+    // and version. Only stuff that CHANGES lives here; base stats stay in the assets.
+    //
+    // On versioning: saveVersion is the FIRST field. Bump CurrentVersion whenever the
+    // shape changes and add a matching migration step in SaveManager so old saves still load.
     [Serializable]
     public class SaveData
     {
-        /// <summary>Bump this whenever SaveData's shape changes; add a migration in SaveManager.</summary>
+        // Bump this whenever SaveData's shape changes, and add a migration in SaveManager.
         public const int CurrentVersion = 4;   // v4: added level + currentExp per member
 
         public int saveVersion = CurrentVersion;
@@ -25,11 +22,9 @@ namespace Nusantara.SaveSystem
         public PartySaveData  party  = new PartySaveData();
         public WorldSaveData  world  = new WorldSaveData();
 
-        /// <summary>
-        /// Open extension slot for future modular systems (quests, inventory, flags).
-        /// ISaveParticipant implementations read/write their own string-keyed blob here
-        /// so adding a system never touches the core sections above.
-        /// </summary>
+        // Open slot for bolt-on systems later (quests, inventory, flags). ISaveParticipant
+        // implementations stash their own string-keyed blob here, so adding a system never
+        // means touching the core sections above.
         public List<NamedBlob> modules = new List<NamedBlob>();
 
         public string GetModule(string key)
@@ -47,14 +42,14 @@ namespace Nusantara.SaveSystem
         }
     }
 
-    // ── Sections ────────────────────────────────────────────────────────────────
+    // --- The sections ---
 
     [Serializable]
     public class PlayerSaveData
     {
-        public string sceneName;   // overworld scene to restore into
+        public string sceneName;   // which overworld scene to drop back into
         public Vec3   position;
-        public float  yaw;         // future-proofing; player root currently doesn't rotate
+        public float  yaw;         // just future-proofing; the player root doesn't rotate yet
     }
 
     [Serializable]
@@ -66,30 +61,30 @@ namespace Nusantara.SaveSystem
     [Serializable]
     public class PartyMemberSaveData
     {
-        public string characterId;  // CharacterData.Id — resolved via GameDatabase on load
+        public string characterId;  // CharacterData.Id, looked up via GameDatabase on load
         public int    currentHp;
-        public int    currentMp = -1;   // -1 = "unset" → restore to full MP (v1 saves migrate to this)
+        public int    currentMp = -1;   // -1 means "unset", so restore to full MP (v1 saves migrate to this)
 
         // v3: loadout + battle selection.
-        // equippedSkillIds = SkillData.Id of the equipped NORMAL skills (resolved against
-        // the character's own pool on load). null/empty → restore the default loadout.
+        // equippedSkillIds = the SkillData.Id of the equipped NORMAL skills (matched
+        // against the character's own pool on load). null/empty means restore the default loadout.
         public List<string> equippedSkillIds = new List<string>();
-        // Whether this member fights (vs sits in reserve). Defaults true so legacy
-        // saves with no value (and freshly built parties) treat everyone as active.
+        // Whether this member fights or sits on the bench. Defaults to true so older saves
+        // with no value (and freshly built parties) treat everyone as active.
         public bool isActive = true;
 
-        // v4: progression. level = 0 means "unset" → restore falls back to the
-        // character's StartingLevel (so legacy saves keep their starting level).
+        // v4: leveling. level = 0 means "unset", so restore falls back to the character's
+        // StartingLevel (that way old saves keep their starting level).
         public int level = 0;
         public int currentExp = 0;
 
-        // Future: equipment ids, learned skill ids — add fields here.
+        // Down the line: equipment ids, learned skill ids, etc. Add fields here.
     }
 
     [Serializable]
     public class WorldSaveData
     {
-        // Multi-region defeated-enemy persistence: one record per overworld scene.
+        // Defeated enemies remembered per region: one record per overworld scene.
         public List<RegionSaveData> regions = new List<RegionSaveData>();
     }
 
@@ -104,16 +99,15 @@ namespace Nusantara.SaveSystem
     public class DefeatedEnemySaveData
     {
         public string id;
-        public bool   hasPosition;  // false for membership-only marks (no bone marker)
+        public bool   hasPosition;  // false when it's just a "this is dead" mark with no bone marker
         public Vec3   position;
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // --- Helpers ---
 
-    /// <summary>
-    /// Serializer-friendly stand-in for Vector3. Newtonsoft chokes on UnityEngine.Vector3
-    /// (it recurses into normalized/magnitude); this flat struct avoids that entirely.
-    /// </summary>
+    // A serializer-friendly stand-in for Vector3. Newtonsoft chokes on UnityEngine.Vector3
+    // (it tries to recurse into normalized/magnitude), but this flat little struct dodges
+    // that completely.
     [Serializable]
     public struct Vec3
     {
@@ -132,11 +126,9 @@ namespace Nusantara.SaveSystem
         public string json;
     }
 
-    /// <summary>
-    /// Lightweight slot header written alongside each save so a load menu can list
-    /// slots (playtime, location, party preview, timestamp) WITHOUT deserializing
-    /// the full save file.
-    /// </summary>
+    // A small slot header saved next to each save, so a load menu can list slots
+    // (playtime, location, party preview, timestamp) without having to read and unpack
+    // the whole save file.
     [Serializable]
     public class SaveMetadata
     {

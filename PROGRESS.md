@@ -4,6 +4,28 @@ Newest entries at the top. Each entry = one session. Keep tight: what shipped, f
 
 ---
 
+## 2026-06-06 — Reusable PanelMotion + Pause Menu animations
+
+**Shipped:** A generic Inspector-driven panel animator (the cousin of `MenuSequencer`) and wired it into the Overworld pause menu. Battle UI is planned but not yet wired.
+
+**Files touched:**
+- `Assets/_Game/Scripts/UI/Motion/PanelMotion.cs` — NEW. Drop on any panel, list Elements (slide dir / ScalePop / FadeOnly), optional backdrop fade, staggered `PlayIn()` / `PlayOut(onDone)`. Routes through UIMotor; unscaled time so it works while paused.
+- `Assets/_Game/Scripts/UI/Motion/UIMotor.cs` — added verbs `SlideIn`, `SlideOut`, `ScalePopIn`, `ScalePopOut`, `FadeIn`, `FadeOut` (kept raw DOTween in this one file per the existing rule).
+- `Assets/_Game/Scripts/UI/Motion/MotionProfile.cs` — added `popInStartScale` knob.
+- `Assets/_Game/Scripts/UI/Menu/GameMenu.cs` — added `panelMotion` field; `Open()` raises MenuEnter + `PlayIn()`; `Close()` raises Cancel + `PlayOut()` then defers `SetActive(false)`/unpause to the callback. Guards `_closing`. Null panelMotion = old snap behaviour (safe fallback).
+
+**Key decisions:**
+1. Reusable component over per-panel Animator clips or a new sequencer per screen. Same `MotionProfile` as the main menu, so the feel is consistent everywhere.
+2. Pause menu stays paused during the close animation; unscaled-time tweens run regardless, then unpause fires on completion.
+3. PanelMotion captures each element's anchoredPosition as "home" on first enable — author elements at their resting on-screen spot, not offscreen.
+
+**Open questions / next steps:**
+- Unity-side wiring needed: add `PanelMotion` to `GameMenuRoot`, fill the Elements list, drag it into GameMenu's Motion slot. Full steps in `GUIDE_PanelMotion_Editor.md` (Cowork project folder).
+- Battle UI animations: NOT wired yet. Recipe written in the guide (section 2). Needs a focused session reading `BattleSystem.cs` to find exact panel show/hide beats.
+- If a Layout Group ever moves pause-menu children after activation, may need a "capture after first layout pass" hook (not needed for current static layout).
+
+---
+
 ## 2026-05-29 (pt. 3) — Animator editor walkthrough + drift reconciliation (shipped end-to-end)
 
 **Shipped:** The 4-state overworld animator system is **live and validated in Play Mode**. Standby ↔ Walk ↔ Idle_1 ↔ Interact all transition correctly; idle countdown fires after the configured threshold; ResetIdleOnExit restarts the timer cleanly after natural-end exits. Also cleaned up a sync mess between the retired script mirror and the live Unity project — Unity is now fully in sync and is the sole source of truth.

@@ -3,17 +3,15 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>
-/// One skill card inside the SkillPanel: icon + name + cost, on a Button.
-/// Greyed (dimmed + non-interactable) when the user can't afford it, or shown
-/// as an empty "—" placeholder when the slot has no skill.
-///
-/// Prefab layout:
-///   Root (Button + Image background + CanvasGroup + SkillCard)
-///     ├── Icon     (Image)
-///     ├── NameText (TextMeshProUGUI)
-///     └── CostText (TextMeshProUGUI)
-/// </summary>
+// One skill card inside the SkillPanel: icon + name + cost sitting on a Button.
+// It goes dim and unclickable when the user can't afford it, or shows a blank "-"
+// placeholder when the slot has no skill in it.
+//
+// Prefab layout:
+//   Root (Button + Image background + CanvasGroup + SkillCard)
+//     - Icon     (Image)
+//     - NameText (TextMeshProUGUI)
+//     - CostText (TextMeshProUGUI)
 public class SkillCard : MonoBehaviour
 {
     [Header("References")]
@@ -28,10 +26,8 @@ public class SkillCard : MonoBehaviour
     [Tooltip("Suffix after the cost number, e.g. 'MP' or 'SP'. Set per-show by SkillPanel.")]
     [SerializeField] private float disabledAlpha = 0.4f;
 
-    /// <summary>
-    /// Populate this card. skill == null → empty placeholder. affordable == false →
-    /// dimmed and non-clickable. onChosen fires only on an affordable, real skill.
-    /// </summary>
+    // Fills in this card. Pass skill == null for a blank placeholder. affordable == false
+    // makes it dim and unclickable. onChosen only fires for a real skill you can afford.
     public void Bind(SkillData skill, bool affordable, string costSuffix, Action onChosen)
     {
         if (button == null)      button = GetComponent<Button>();
@@ -40,7 +36,7 @@ public class SkillCard : MonoBehaviour
 
         if (skill == null)
         {
-            if (nameText) nameText.text = "—";
+            if (nameText) nameText.text = "-";
             if (costText) costText.text = "";
             if (icon)     icon.enabled  = false;
             SetEnabled(false);

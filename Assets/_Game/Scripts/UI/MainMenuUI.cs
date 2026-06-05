@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
+using Nusantara.UI.Motion;
+using DG.Tweening;
 
 /// <summary>
 /// Main Menu controller. Handles New Game / Continue / Quit buttons and
@@ -46,6 +48,11 @@ public class MainMenuUI : MonoBehaviour
     [Tooltip("Shown in the version label, e.g. 'v0.1'. Leave blank to hide the label.")]
     [SerializeField] private string versionString = "v0.1";
 
+    [Header("Motion (optional)")]
+    [Tooltip("If set, New Game / Continue play the out-cascade and a screen wipe before loading. Leave both null to keep the old instant load.")]
+    [SerializeField] private MenuSequencer sequencer;
+    [SerializeField] private ScreenTransition screenTransition;
+
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     void Start()
@@ -71,8 +78,11 @@ public class MainMenuUI : MonoBehaviour
     private void OnNewGame()
     {
         // TODO: if a save exists, prompt "overwrite?" before loading.
-        SaveSystem.NewGame();   // reset playtime + world state for a fresh run
-        SceneManager.LoadScene(gameSceneName);
+        TransitionThenLoad(() =>
+        {
+            SaveSystem.NewGame();   // reset playtime + world state for a fresh run
+            SceneManager.LoadScene(gameSceneName);
+        });
     }
 
     private void OnContinue()
@@ -81,7 +91,32 @@ public class MainMenuUI : MonoBehaviour
 
         // SaveManager loads the saved scene itself and restores party + position
         // once it finishes loading — no manual SceneManager.LoadScene here.
-        SaveSystem.Load();
+        TransitionThenLoad(() => SaveSystem.Load());
+    }
+
+    // Plays the menu out-cascade, wipes the screen, then runs the load. If the
+    // motion refs aren't wired this just loads immediately, so the menu still
+    // works with no motion setup at all.
+    private void TransitionThenLoad(System.Action load)
+    {
+        if (sequencer == null && screenTransition == null)
+        {
+            load();
+            return;
+        }
+
+        System.Action wipeAndLoad = () =>
+        {
+            if (screenTransition != null)
+                screenTransition.Play().OnComplete(() => load());
+            else
+                load();
+        };
+
+        if (sequencer != null)
+            sequencer.PlayOut(wipeAndLoad);
+        else
+            wipeAndLoad();
     }
 
     private void OnQuit()

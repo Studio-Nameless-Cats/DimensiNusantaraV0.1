@@ -1,21 +1,18 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>
-/// Manages the Turn Order bar shown during battle.
-/// Spawns one TurnOrderSlot per unit, highlights the active unit,
-/// and greys out units that have fainted.
-///
-/// Scene setup:
-///   1. In the Battle Canvas, create a Panel: name it "TurnOrderPanel".
-///   2. Add this component to TurnOrderPanel.
-///   3. Inside TurnOrderPanel:
-///        - Optional: a TextMeshProUGUI label ("URUTAN\nGILIRAN")
-///        - A child Panel named "SlotsContainer" with a Horizontal Layout Group.
-///   4. Create a slot Prefab (see TurnOrderSlot.cs) and assign it below.
-///   5. Assign the SlotsContainer Transform below.
-///   6. Assign this TurnOrderDisplay on the BattleSystem component.
-/// </summary>
+// Runs the turn-order bar you see during a fight. Spawns one TurnOrderSlot per unit,
+// lights up whoever's acting, and drops anyone who faints off the bar.
+//
+// Scene setup:
+//   1. In the Battle Canvas, make a Panel and name it "TurnOrderPanel".
+//   2. Put this component on TurnOrderPanel.
+//   3. Inside TurnOrderPanel:
+//        - Optional: a TextMeshProUGUI label ("URUTAN\nGILIRAN")
+//        - A child Panel named "SlotsContainer" with a Horizontal Layout Group.
+//   4. Make a slot prefab (see TurnOrderSlot.cs) and assign it below.
+//   5. Assign the SlotsContainer Transform below.
+//   6. Assign this TurnOrderDisplay on the BattleSystem component.
 public class TurnOrderDisplay : MonoBehaviour
 {
     [Header("References")]
@@ -24,19 +21,14 @@ public class TurnOrderDisplay : MonoBehaviour
     [Tooltip("Parent transform with a Horizontal Layout Group.")]
     [SerializeField] private Transform    slotsContainer;
 
-    // ── Runtime ───────────────────────────────────────────────────────────────
     private List<TurnOrderSlot> slots = new List<TurnOrderSlot>();
     private List<BattleUnit>    order = new List<BattleUnit>();
 
-    // ── Public API ────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Call once after the battle setup is complete with the full sorted turn order.
-    /// Destroys any existing slots and creates fresh ones.
-    /// </summary>
+    // Call this once battle setup is done, passing the full sorted turn order. It tears
+    // down any old slots and builds fresh ones.
     public void Initialise(List<BattleUnit> turnOrder)
     {
-        // Clear previous slots
+        // Clear out the old slots first.
         foreach (var slot in slots)
             if (slot != null) Destroy(slot.gameObject);
         slots.Clear();
@@ -45,17 +37,17 @@ public class TurnOrderDisplay : MonoBehaviour
 
         if (slotPrefab == null)
         {
-            Debug.LogError("[TurnOrderDisplay] slotPrefab is not assigned! ❌ Assign it in the Inspector.");
+            Debug.LogError("[TurnOrderDisplay] slotPrefab is not assigned! Assign it in the Inspector.");
             return;
         }
 
         if (slotsContainer == null)
         {
-            Debug.LogError("[TurnOrderDisplay] slotsContainer is not assigned! ❌ Assign it in the Inspector.");
+            Debug.LogError("[TurnOrderDisplay] slotsContainer is not assigned! Assign it in the Inspector.");
             return;
         }
 
-        // Spawn one slot per unit
+        // One slot per unit.
         foreach (var unit in turnOrder)
         {
             var go   = Instantiate(slotPrefab, slotsContainer);
@@ -63,7 +55,7 @@ public class TurnOrderDisplay : MonoBehaviour
 
             if (slot == null)
             {
-                Debug.LogError("[TurnOrderDisplay] slotPrefab has no TurnOrderSlot component! ❌");
+                Debug.LogError("[TurnOrderDisplay] slotPrefab has no TurnOrderSlot component!");
                 continue;
             }
 
@@ -74,9 +66,7 @@ public class TurnOrderDisplay : MonoBehaviour
         Debug.Log($"[TurnOrderDisplay] Initialised with {slots.Count} slot(s).");
     }
 
-    /// <summary>
-    /// Call at the start of each turn to highlight the active unit's slot.
-    /// </summary>
+    // Call this at the start of each turn to light up the active unit's slot.
     public void UpdateCurrentTurn(int currentIndex)
     {
         for (int i = 0; i < slots.Count; i++)
@@ -86,12 +76,10 @@ public class TurnOrderDisplay : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Call when a unit faints — removes their icon from the bar entirely.
-    /// The slot's GameObject is deactivated (not destroyed and not removed from the
-    /// list) so the remaining slot indices stay aligned with the turn order for
-    /// <see cref="UpdateCurrentTurn"/>; the Horizontal Layout Group collapses the gap.
-    /// </summary>
+    // Call this when a unit faints to pull their icon off the bar. We just deactivate the
+    // slot's GameObject (don't destroy it or remove it from the list) so the leftover slot
+    // indices stay lined up with the turn order for UpdateCurrentTurn. The Horizontal
+    // Layout Group closes the gap for us.
     public void MarkFainted(BattleUnit unit)
     {
         int idx = order.IndexOf(unit);

@@ -1,21 +1,19 @@
 using System.Collections;
 using UnityEngine;
 
-/// <summary>
-/// Smooth, decaying camera shake — adds "life" to battle impacts without the
-/// jittery, nauseating feel of a pure-random jolt. Uses Perlin noise for a soft,
-/// continuous wobble whose amplitude eases back to zero over the shake duration.
-///
-/// ── Unity setup ──────────────────────────────────────────────────────────────
-///   • Drop this on the Battle Camera (or, better, on a parent "CameraRig" with the
-///     Camera as a child — then the shake offset never fights other camera logic).
-///   • It animates this transform's LOCAL position around whatever its local
-///     position is at Awake, so it works whether it's the camera itself or a rig.
-///   • Assign the BattleSystem's "Camera Shake" reference to this component.
-///
-/// Calling: <see cref="Shake()"/> uses the inspector defaults; the overload lets a
-/// caller scale the punch (e.g. a crit shakes harder than a normal hit).
-/// </summary>
+// Smooth, fading camera shake. Adds a bit of "oomph" to battle hits without that
+// nauseating, jittery feel you get from pure random jolts. Uses Perlin noise for a
+// soft continuous wobble that eases back to zero over the shake's lifetime.
+//
+// Unity setup:
+//   - Drop this on the Battle Camera, or better, on a parent "CameraRig" with the
+//     Camera as a child (that way the shake offset never fights other camera logic).
+//   - It wobbles this transform's LOCAL position around wherever it sits at Awake,
+//     so it works whether it's the camera itself or a rig.
+//   - Assign it to the BattleSystem's "Camera Shake" reference.
+//
+// Shake() uses the inspector defaults; the overload lets you scale the punch
+// (e.g. a crit shakes harder than a normal hit).
 public class CameraShake : MonoBehaviour
 {
     [Header("Default shake")]
@@ -32,11 +30,10 @@ public class CameraShake : MonoBehaviour
              "Leave default for a smooth ease-out.")]
     [SerializeField] private AnimationCurve falloff = AnimationCurve.EaseInOut(0f, 1f, 1f, 0f);
 
-    // ── State ──────────────────────────────────────────────────────────────────
     private Vector3   _baseLocalPos;
     private Coroutine _shakeRoutine;
 
-    // Distinct Perlin sample lanes per axis so X and Y don't move in lockstep.
+    // Separate Perlin sample lanes per axis so X and Y don't move in lockstep.
     private float _seedX;
     private float _seedY;
 
@@ -49,21 +46,17 @@ public class CameraShake : MonoBehaviour
 
     void OnDisable()
     {
-        // Make sure we don't leave the camera parked off-centre if disabled mid-shake.
+        // Don't leave the camera stuck off-centre if we get disabled mid-shake.
         if (_shakeRoutine != null) { StopCoroutine(_shakeRoutine); _shakeRoutine = null; }
         transform.localPosition = _baseLocalPos;
     }
 
-    // ── Public API ─────────────────────────────────────────────────────────────
-
-    /// <summary>Shake with the inspector default duration + magnitude.</summary>
+    // Shake using the inspector default duration + magnitude.
     public void Shake() => Shake(magnitude, duration);
 
-    /// <summary>
-    /// Shake with an explicit magnitude (and optional duration). Pass a bigger
-    /// magnitude for heavier impacts (crits, specials). Re-capturing the base
-    /// position each call keeps repeated/overlapping shakes from drifting.
-    /// </summary>
+    // Shake with a specific magnitude (and optional duration). Pass a bigger magnitude
+    // for heavier hits (crits, specials). We grab the base position fresh each call so
+    // repeated or overlapping shakes don't slowly drift the camera away.
     public void Shake(float shakeMagnitude, float shakeDuration = -1f)
     {
         if (shakeDuration <= 0f) shakeDuration = duration;
@@ -71,7 +64,7 @@ public class CameraShake : MonoBehaviour
         if (_shakeRoutine != null)
         {
             StopCoroutine(_shakeRoutine);
-            transform.localPosition = _baseLocalPos;   // reset before re-capturing
+            transform.localPosition = _baseLocalPos;   // snap back before grabbing the base again
         }
 
         _shakeRoutine = StartCoroutine(ShakeRoutine(shakeMagnitude, shakeDuration));
@@ -79,7 +72,7 @@ public class CameraShake : MonoBehaviour
 
     private IEnumerator ShakeRoutine(float shakeMagnitude, float shakeDuration)
     {
-        _baseLocalPos = transform.localPosition;   // anchor to current rest position
+        _baseLocalPos = transform.localPosition;   // anchor to wherever the camera is resting now
         float elapsed = 0f;
 
         while (elapsed < shakeDuration)
@@ -89,7 +82,7 @@ public class CameraShake : MonoBehaviour
             float amp    = shakeMagnitude * falloff.Evaluate(t);
             float sample = elapsed * frequency;
 
-            // Perlin returns 0..1; remap to -1..1 for a centred wobble.
+            // Perlin gives us 0..1; shift it to -1..1 so the wobble is centred.
             float offsetX = (Mathf.PerlinNoise(_seedX, sample) - 0.5f) * 2f;
             float offsetY = (Mathf.PerlinNoise(_seedY, sample) - 0.5f) * 2f;
 

@@ -4,19 +4,15 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>
-/// Handles the battle text box (dialog) and the player action selector
-/// (Attack / Skill / Special Skill / Run).
-///
-/// UI Setup (Canvas children):
-///   - DialogPanel  → Image background
-///     - DialogText → TextMeshProUGUI
-///   - ActionPanel  → contains the 4 command buttons
-///     - AttackButton       → Button + TextMeshProUGUI child
-///     - SkillButton        → Button + TextMeshProUGUI child
-///     - SpecialSkillButton → Button + TextMeshProUGUI child
-///     - RunButton          → Button + TextMeshProUGUI child
-/// </summary>
+// The battle text box plus the player's command buttons (Attack / Skill /
+// Special Skill / Run).
+//
+// How to set up the UI (Canvas children):
+//   - DialogPanel  -> Image background
+//     - DialogText -> TextMeshProUGUI
+//   - ActionPanel  -> holds the 4 command buttons
+//     - AttackButton, SkillButton, SpecialSkillButton, RunButton
+//       (each one is a Button with a TextMeshProUGUI child)
 public class BattleDialogBox : MonoBehaviour
 {
     [Header("Dialog")]
@@ -30,51 +26,46 @@ public class BattleDialogBox : MonoBehaviour
     [SerializeField] private Button     specialSkillButton;
     [SerializeField] private Button     runButton;
 
-    // ── Events ───────────────────────────────────────────────────────────────
+    // Button events the BattleSystem listens to.
     public event Action OnAttackPressed;
     public event Action OnSkillPressed;
     public event Action OnSpecialPressed;
     public event Action OnRunPressed;
 
-    // ── Unity lifecycle ──────────────────────────────────────────────────────
-
     void Awake()
     {
+        // Yell in the console if someone forgot to wire a reference in the Inspector.
         if (dialogText == null)
-            Debug.LogError("[BattleDialogBox] dialogText is NOT assigned in the Inspector! ❌ Assign the TextMeshProUGUI component for the dialog text.");
+            Debug.LogError("[BattleDialogBox] dialogText is NOT assigned in the Inspector! Assign the TextMeshProUGUI component for the dialog text.");
 
         if (actionPanel == null)
-            Debug.LogError("[BattleDialogBox] actionPanel is NOT assigned in the Inspector! ❌ Assign the Action Panel GameObject (the one containing Attack and Run buttons).");
+            Debug.LogError("[BattleDialogBox] actionPanel is NOT assigned in the Inspector! Assign the Action Panel GameObject (the one containing Attack and Run buttons).");
 
         if (attackButton == null)
-            Debug.LogError("[BattleDialogBox] attackButton is NOT assigned in the Inspector! ❌");
+            Debug.LogError("[BattleDialogBox] attackButton is NOT assigned in the Inspector!");
 
         if (skillButton == null)
-            Debug.LogError("[BattleDialogBox] skillButton is NOT assigned in the Inspector! ❌");
+            Debug.LogError("[BattleDialogBox] skillButton is NOT assigned in the Inspector!");
 
         if (specialSkillButton == null)
-            Debug.LogError("[BattleDialogBox] specialSkillButton is NOT assigned in the Inspector! ❌");
+            Debug.LogError("[BattleDialogBox] specialSkillButton is NOT assigned in the Inspector!");
 
         if (runButton == null)
-            Debug.LogError("[BattleDialogBox] runButton is NOT assigned in the Inspector! ❌");
+            Debug.LogError("[BattleDialogBox] runButton is NOT assigned in the Inspector!");
 
         attackButton?.onClick.AddListener(()       => OnAttackPressed?.Invoke());
         skillButton?.onClick.AddListener(()        => OnSkillPressed?.Invoke());
         specialSkillButton?.onClick.AddListener(() => OnSpecialPressed?.Invoke());
         runButton?.onClick.AddListener(()          => OnRunPressed?.Invoke());
 
-        // ✅ This is intentional — the action panel hides at start
-        // and only shows when it is the player's turn
+        // On purpose: keep the buttons hidden at the start. They only pop up
+        // when it's actually the player's turn.
         ShowActionSelector(false);
         Debug.Log("[BattleDialogBox] Awake complete. Action panel hidden on purpose — shows when player's turn starts.");
     }
 
-    // ── Dialog ───────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Displays text character-by-character (typewriter effect).
-    /// Await this coroutine; it pauses briefly after finishing.
-    /// </summary>
+    // Prints the text one letter at a time for that classic typewriter feel.
+    // Await this; it waits a tiny bit at the end before moving on.
     public IEnumerator TypeDialog(string message)
     {
         dialogText.text = "";
@@ -85,16 +76,14 @@ public class BattleDialogBox : MonoBehaviour
             yield return new WaitForSeconds(1f / typeSpeed);
         }
 
-        yield return new WaitForSeconds(0.6f); // brief pause before next line
+        yield return new WaitForSeconds(0.6f); // small pause before the next line
     }
 
-    /// <summary>Sets the dialog text instantly (no typewriter effect).</summary>
+    // Just slam the text in instantly, no typewriter.
     public void SetMessage(string message)
     {
         dialogText.text = message;
     }
-
-    // ── Action selector ──────────────────────────────────────────────────────
 
     public void ShowActionSelector(bool visible)
     {

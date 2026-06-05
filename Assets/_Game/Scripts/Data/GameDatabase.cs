@@ -1,36 +1,32 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>
-/// Central asset registry that maps stable string ids → ScriptableObject assets.
-/// The save system stores ids only (never object references); on load it asks the
-/// database to resolve each id back to the live asset.
-///
-/// Why this exists:
-///   You cannot serialize a reference to a <see cref="CharacterData"/> asset. The
-///   save file stores its <see cref="CharacterData.Id"/>; this database turns that
-///   id back into the asset so a <see cref="PartyMember"/> can be rebuilt.
-///
-/// ── Unity setup (editor walkthrough — do later) ──────────────────────────────
-///   1. Create the asset: Right-click in Project → RPG → Game Database.
-///   2. Put it in a folder named exactly "Resources" (e.g.
-///      Assets/_Game/Resources/GameDatabase.asset) and name it "GameDatabase"
-///      so <see cref="Instance"/> can Resources.Load it at runtime.
-///   3. Drag every player/recruitable CharacterData into the Characters list.
-///      (Enemies are tracked by their own EnemyId string and don't need entries.)
-///
-/// Add future asset types (items, skills, quests) as extra lists + lookups here.
-/// </summary>
+// A central little registry that maps stable string ids to ScriptableObject assets.
+// The save system only stores ids (never actual object references); on load it asks this
+// database to turn each id back into the real asset.
+//
+// Why it has to exist:
+//   You can't serialize a reference to a CharacterData asset. The save file keeps its
+//   CharacterData.Id instead, and this database turns that id back into the asset so a
+//   PartyMember can be rebuilt.
+//
+// Unity setup (an editor task for later):
+//   1. Make the asset: Right-click in Project -> RPG -> Game Database.
+//   2. Put it in a folder named exactly "Resources" (e.g.
+//      Assets/_Game/Resources/GameDatabase.asset) and name it "GameDatabase" so
+//      Instance can Resources.Load it at runtime.
+//   3. Drag every player / recruitable CharacterData into the Characters list.
+//      (Enemies are tracked by their own EnemyId string and don't need entries.)
+//
+// Got more asset types later (items, skills, quests)? Add extra lists + lookups here.
 [CreateAssetMenu(fileName = "GameDatabase", menuName = "RPG/Game Database")]
 public class GameDatabase : ScriptableObject
 {
-    // ── Runtime singleton (Resources-loaded, no scene wiring needed) ──────────
+    // The runtime singleton, loaded from Resources so there's no scene wiring needed.
     private static GameDatabase _instance;
 
-    /// <summary>
-    /// Lazily loads the GameDatabase asset from a Resources folder. Returns null
-    /// (with a clear error) if no asset named "GameDatabase" exists in Resources.
-    /// </summary>
+    // Loads the GameDatabase asset from a Resources folder the first time it's needed.
+    // Returns null (with a clear error) if there's no asset named "GameDatabase" in Resources.
     public static GameDatabase Instance
     {
         get
@@ -40,7 +36,7 @@ public class GameDatabase : ScriptableObject
                 _instance = Resources.Load<GameDatabase>("GameDatabase");
                 if (_instance == null)
                     Debug.LogError("[GameDatabase] No 'GameDatabase' asset found in a Resources folder. " +
-                                   "Create one (RPG → Game Database) and place it at Assets/_Game/Resources/GameDatabase.asset.");
+                                   "Make one (RPG -> Game Database) and drop it at Assets/_Game/Resources/GameDatabase.asset.");
                 else
                     _instance.BuildLookup();
             }
@@ -54,8 +50,7 @@ public class GameDatabase : ScriptableObject
 
     private Dictionary<string, CharacterData> _characterById;
 
-    // ── Lookup ────────────────────────────────────────────────────────────────
-
+    // Builds the id -> character lookup table.
     private void BuildLookup()
     {
         _characterById = new Dictionary<string, CharacterData>();
@@ -64,14 +59,14 @@ public class GameDatabase : ScriptableObject
             if (c == null || string.IsNullOrEmpty(c.Id)) continue;
             if (_characterById.ContainsKey(c.Id))
             {
-                Debug.LogWarning($"[GameDatabase] Duplicate character id '{c.Id}' ({c.Name}) — only the first is kept.");
+                Debug.LogWarning($"[GameDatabase] Two characters share id '{c.Id}' ({c.Name}). Keeping only the first one.");
                 continue;
             }
             _characterById[c.Id] = c;
         }
     }
 
-    /// <summary>Resolves a saved id back to its CharacterData asset, or null if unknown.</summary>
+    // Turns a saved id back into its CharacterData asset, or null if we don't know it.
     public CharacterData GetCharacter(string id)
     {
         if (string.IsNullOrEmpty(id)) return null;

@@ -1,20 +1,17 @@
 using UnityEngine;
 
-/// <summary>
-/// Represents one fighter on the battle field.
-/// Each BattleUnit wraps a PartyMember (its data/stats) and controls
-/// the visual model + HUD for that fighter.
-///
-/// Setup:
-///   - Place BattleUnit prefabs at the spawn point positions in the Battle scene.
-///   - Assign the BattleHud reference (a Canvas child near the unit).
-///   - The Animator on the model must have triggers: Attack, Hit, Faint, Parry.
-/// </summary>
+// One fighter standing on the battlefield. Each BattleUnit wraps a PartyMember (its
+// data and stats) and runs the visual model + HUD for that fighter.
+//
+// Setup:
+//   - Drop BattleUnit prefabs at the spawn points in the Battle scene.
+//   - Assign the BattleHud reference (a Canvas child sitting near the unit).
+//   - The Animator on the model needs these triggers: Attack, Hit, Faint, Parry.
 public class BattleUnit : MonoBehaviour
 {
-    // ⚠️ Do NOT set this in the Inspector — it is assigned at runtime by BattleSystem.
-    // Both player and enemy units use the same prefab, so a hardcoded Inspector value
-    // would make every unit the same team.
+    // Heads up: don't set this in the Inspector. BattleSystem sets it at runtime.
+    // Player and enemy units share the same prefab, so a hardcoded value here would
+    // put everyone on the same team.
     private bool isPlayerUnit;
 
     [Header("References")]
@@ -31,22 +28,18 @@ public class BattleUnit : MonoBehaviour
     // True once the HUD has been parked above the sprite (used when continuousHudAlign is OFF).
     private bool hudAligned;
 
-    // ── Animator parameter hashes ─────────────────────────────────────────────
+    // Pre-hashed animator trigger names (cheaper than passing strings every time).
     private static readonly int AttackHash = Animator.StringToHash("Attack");
     private static readonly int HitHash    = Animator.StringToHash("Hit");
     private static readonly int FaintHash  = Animator.StringToHash("Faint");
     private static readonly int ParryHash  = Animator.StringToHash("Parry");
 
-    // ── State ─────────────────────────────────────────────────────────────────
     private PartyMember member;
     private Animator    animator;
 
-    // ── Properties ────────────────────────────────────────────────────────────
     public bool        IsPlayerUnit => isPlayerUnit;
     public PartyMember Member       => member;
     public BattleHud   Hud          => hud;
-
-    // ── Unity lifecycle ────────────────────────────────────────────────────────
 
     void Awake()
     {
@@ -61,20 +54,17 @@ public class BattleUnit : MonoBehaviour
             Debug.LogWarning($"[BattleUnit] BattleHud is NOT assigned on '{gameObject.name}'. HP bar will not display. Assign the BattleHud reference in the prefab Inspector.");
     }
 
-    // The animator assigns the real sprite a frame after Setup(), so the sprite's
-    // true bounds (which depend on its Pixels-Per-Unit) aren't known until LateUpdate.
-    // Park the HUD just above the sprite's top edge here, where bounds are valid.
+    // The animator swaps in the real sprite a frame after Setup(), so we don't actually
+    // know the sprite's true size (it depends on Pixels-Per-Unit) until LateUpdate. So we
+    // park the HUD just above the sprite's top edge here, where the bounds are valid.
     void LateUpdate()
     {
         if (continuousHudAlign)      AlignHudToSpriteTop();
         else if (!hudAligned)      { AlignHudToSpriteTop(); hudAligned = true; }
     }
 
-    /// <summary>
-    /// Moves the world-space HUD so it sits a fixed gap above the TOP of the sprite,
-    /// regardless of the sprite's size / Pixels-Per-Unit. Only the Y is changed —
-    /// the HUD keeps its horizontal offset.
-    /// </summary>
+    // Nudges the world-space HUD so it floats a fixed gap above the top of the sprite,
+    // no matter how big the sprite is. Only touches the Y; the HUD keeps its sideways offset.
     private void AlignHudToSpriteTop()
     {
         if (hud == null || spriteRenderer == null || spriteRenderer.sprite == null) return;
@@ -84,24 +74,20 @@ public class BattleUnit : MonoBehaviour
         hud.transform.position = pos;
     }
 
-    // ── Setup ─────────────────────────────────────────────────────────────────
+    // --- Setup ---
 
-    /// <summary>
-    /// Initialises this unit with a PartyMember. Called by BattleSystem at spawn time.
-    /// </summary>
-    /// <summary>
-    /// Initialises this unit. isPlayer = true for party members, false for enemies.
-    /// Always set by BattleSystem — never rely on the Inspector for this.
-    /// </summary>
+    // Sets this unit up with its PartyMember. BattleSystem calls this when it spawns us.
+    // isPlayer = true for party members, false for enemies. BattleSystem always passes
+    // this in; don't ever rely on the Inspector for it.
     public void Setup(PartyMember partyMember, bool isPlayer)
     {
         isPlayerUnit = isPlayer;
         member       = partyMember;
 
-        // Single left-facing battle clip set (same model as the overworld).
-        // Friendly units sit on the left and face RIGHT → mirror the left clip (flipX=true).
-        // Enemies sit on the right and face LEFT → use the base clip un-flipped (flipX=false).
-        // Battle units don't move directionally, so this one-time set at spawn is enough.
+        // We only have one left-facing set of battle clips (same model as the overworld).
+        // Friendly units stand on the left and face right, so we mirror the clip (flipX=true).
+        // Enemies stand on the right facing left, so they use the clip as-is (flipX=false).
+        // Battle units don't walk around, so setting this once at spawn is all we need.
         if (spriteRenderer != null)
             spriteRenderer.flipX = isPlayer;
         Debug.Log($"[BattleUnit] Setting up '{partyMember.Name}' | HP:{partyMember.CurrentHp}/{partyMember.MaxHp} | ATK:{partyMember.Attack} | SPD:{partyMember.Speed} | IsPlayerUnit:{isPlayerUnit}");
@@ -122,40 +108,38 @@ public class BattleUnit : MonoBehaviour
         if (hud != null)
             hud.SetData(member);
         else
-            Debug.LogWarning($"[BattleUnit] '{partyMember.Name}' has no BattleHud assigned — HP bar will not show.");
+            Debug.LogWarning($"[BattleUnit] '{partyMember.Name}' has no BattleHud assigned, so the HP bar won't show.");
     }
 
-    // ── Animations ────────────────────────────────────────────────────────────
+    // --- Animations ---
 
     public void PlayAttackAnimation() => animator?.SetTrigger(AttackHash);
     public void PlayHitAnimation()    => animator?.SetTrigger(HitHash);
     public void PlayFaintAnimation()  => animator?.SetTrigger(FaintHash);
-    /// <summary>Deflect-and-riposte clip, played when the player successfully parries and strikes back.</summary>
+    // The block-and-hit-back clip, played when the player parries and counters.
     public void PlayParryAnimation()  => animator?.SetTrigger(ParryHash);
 
-    // ── HUD ───────────────────────────────────────────────────────────────────
+    // --- HUD ---
 
-    /// <summary>Refreshes the HP bar after the member's HP changes.</summary>
+    // Redraws the HP bar after the member's HP changes.
     public void UpdateHud() => hud?.UpdateHP(member);
 
-    /// <summary>Refreshes only the MP bar + Special gauge (e.g. after charging the
-    /// Special on a basic attack, or spending MP on a skill — no HP change).</summary>
+    // Redraws just the MP bar + Special gauge (e.g. after charging Special on a basic
+    // attack or spending MP on a skill, when HP didn't change).
     public void RefreshResources() => hud?.UpdateResources(member);
 
-    /// <summary>Refreshes the status-effect badges after a status is applied or expires.</summary>
+    // Redraws the status-effect badges after a status gets applied or wears off.
     public void RefreshStatusIcons() => hud?.ShowStatuses(member.Statuses);
 
-    // ── Visibility ──────────────────────────────────────────────────────────────
+    // --- Showing / hiding ---
 
-    /// <summary>
-    /// Removes a fallen unit from the battlefield view: hides its HUD (name + HP bar)
-    /// and its model/sprite, so the player sees no lingering corpse. The underlying
-    /// PartyMember data is left intact, so win/lose and turn-skip checks still work.
-    /// Called by BattleSystem after the faint animation has played.
-    /// </summary>
+    // Yanks a fallen unit off the screen: hides its HUD (name + HP bar) and its
+    // model/sprite so there's no leftover corpse lying around. The PartyMember data
+    // underneath stays intact, so win/lose and turn-skip checks still work fine.
+    // BattleSystem calls this after the faint animation finishes.
     public void Hide()
     {
-        if (hud != null) hud.gameObject.SetActive(false);  // explicit: HUD may be a separate canvas
+        if (hud != null) hud.gameObject.SetActive(false);  // on purpose: the HUD may live on a separate canvas
         gameObject.SetActive(false);
     }
 }

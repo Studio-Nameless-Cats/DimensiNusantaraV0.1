@@ -1,0 +1,52 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ba590f49c37e5ef4a84baafd62fcd316, type: 3}
+  m_Name: MainMenuMotionProfile
+  m_EditorClassIdentifier: Assembly-CSharp::Nusantara.UI.Motion.MotionProfile
+  skewSlideOffset: {x: -220, y: 46}
+  fastInDuration: 0.28
+  fastInEase: 27
+  fastInOvershoot: 1.6
+  fastOutDuration: 0.2
+  fastOutEase: 26
+  cascadeStagger: 0.06
+  selectPopDuration: 0.12
+  selectPopEase: 27
+  selectPopOvershoot: 1.6
+  selectPopScale: 1.1
+  selectPopShiftX: -12
+  deselectDuration: 0.1
+  deselectEase: 6
+  colorSlamDuration: 0.08
+  colorSlamEase: 6
+  selectedFillColor: {r: 0.886, g: 0.227, b: 0.118, a: 1}
+  selectedTextColor: {r: 0.937, g: 0.902, b: 0.823, a: 1}
+  idleDriftDuration: 3
+  idleDriftEase: 4
+  idleDriftAmplitude: 6
+  idleDriftRotation: 1.5
+  idleDriftScale: 0.02
+  shadowLagDurationMult: 1.1
+  shadowLagDelay: 0.06
+  shadowFollowSmoothing: 14
+  screenWipeDuration: 0.35
+  screenWipeEase: 7
+  pulseDuration: 0.25
+  pulsePunch: 0.18
+  pulseVibrato: 8
+  pulseElasticity: 0.6
+  useUnscaledTime: 1
+  moveSfx: {fileID: 0}
+  confirmSfx: {fileID: 0}
+  cancelSfx: {fileID: 0}
+  menuEnterSfx: {fileID: 0}
+  sfxVolume: 0.8

@@ -1,25 +1,23 @@
 using UnityEngine;
 
-/// <summary>Which resource a skill draws from / which command button surfaces it.</summary>
+// Which resource a skill spends, and which command button it shows up under.
 public enum SkillCategory { Normal, Special }
 
-/// <summary>What a skill does when used.</summary>
+// What a skill actually does when you use it.
 public enum SkillEffectType { Damage, Heal, ApplyStatus }
 
-/// <summary>Who a skill applies to.</summary>
+// Who a skill hits.
 public enum SkillTarget { SingleEnemy, AllEnemies, Self, SingleAlly, AllAllies }
 
-/// <summary>
-/// ScriptableObject describing one battle skill.
-///
-/// Two flavours, set by <see cref="category"/>:
-///   - Normal  → surfaced by the SKILL button, costs MP.
-///   - Special → surfaced by the SPECIAL SKILL button, costs the Special gauge
-///               (which fills as the battle goes).
-///
-/// Create via: Right-click in Project → RPG → Skill Data.
-/// Assign skills to a character on its CharacterData (Skills / Special Skills lists).
-/// </summary>
+// A ScriptableObject describing one battle skill.
+//
+// There are two flavours, picked by 'category':
+//   - Normal  -> shows up under the SKILL button, costs MP.
+//   - Special -> shows up under the SPECIAL SKILL button, costs the Special gauge
+//                (which fills up as the fight goes on).
+//
+// Make one with: Right-click in Project -> RPG -> Skill Data.
+// Then add skills to a character on its CharacterData (the Skills / Special Skills lists).
 [CreateAssetMenu(fileName = "New Skill", menuName = "RPG/Skill Data")]
 public class SkillData : ScriptableObject
 {
@@ -46,12 +44,11 @@ public class SkillData : ScriptableObject
     [SerializeField] private float damageMultiplier = 1.5f;
     [Tooltip("HEAL only: flat HP restored to the target(s).")]
     [SerializeField] private int healAmount = 20;
-    [Tooltip("Status applied to the target(s). REQUIRED when Effect Type = Apply Status. " +
-             "Also acts as an optional RIDER on Damage/Heal skills (e.g. an attack that also poisons) — leave null for none. " +
-             "Make sure the skill's Target matches the status: debuffs → enemies, buffs → allies/self.")]
+    [Tooltip("Status slapped on the target(s). REQUIRED when Effect Type = Apply Status. " +
+             "Can also ride along on a Damage/Heal skill (like an attack that also poisons); leave it null if you don't want that. " +
+             "Make sure the skill's Target matches the status: debuffs go on enemies, buffs go on allies/self.")]
     [SerializeField] private StatusEffectData statusEffect;
 
-    // ── Properties ──────────────────────────────────────────────────────────
     public string          Id               => id;
     public string          Name             => skillName;
     public Sprite          Icon             => icon;
@@ -65,24 +62,25 @@ public class SkillData : ScriptableObject
     public int               HealAmount       => healAmount;
     public StatusEffectData  StatusEffect     => statusEffect;
 
-    /// <summary>True if this skill applies a status — either as its primary effect or as a rider on a Damage/Heal skill.</summary>
+    // True if this skill puts a status on the target, whether that's the main effect or
+    // just a rider on a Damage/Heal skill.
     public bool AppliesStatus => statusEffect != null
                                  && (effectType == SkillEffectType.ApplyStatus
                                      || effectType == SkillEffectType.Damage
                                      || effectType == SkillEffectType.Heal);
 
-    /// <summary>True if this skill aims at an enemy (vs an ally/self), used to pick the target list.</summary>
+    // True if this skill is aimed at enemies (not allies/self). Used to pick the target list.
     public bool TargetsEnemies => target == SkillTarget.SingleEnemy || target == SkillTarget.AllEnemies;
 
-    /// <summary>True if this skill hits everyone on its side (no per-target picker needed).</summary>
+    // True if this skill hits everyone on its side, so no per-target picker is needed.
     public bool TargetsAll => target == SkillTarget.AllEnemies || target == SkillTarget.AllAllies;
 
-    /// <summary>True if this skill applies only to the user (no picker needed).</summary>
+    // True if this skill only ever hits the user, so no picker is needed.
     public bool TargetsSelf => target == SkillTarget.Self;
 
 #if UNITY_EDITOR
-    // Auto-assign a stable GUID the first time this asset is created/inspected.
-    // Editor-only: ids are baked into the asset and never regenerated at runtime.
+    // Hand this asset a stable GUID the first time it's made or inspected. Editor-only:
+    // the id gets baked in and never gets regenerated at runtime.
     private void OnValidate()
     {
         if (string.IsNullOrEmpty(id))

@@ -1,10 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>
-/// ScriptableObject that stores all base data for a character (player or enemy).
-/// Create via: Right-click in Project → RPG → Character Data
-/// </summary>
+// A ScriptableObject holding all the base data for a character (player or enemy).
+// Make one with: Right-click in Project -> RPG -> Character Data
 [CreateAssetMenu(fileName = "New Character", menuName = "RPG/Character Data")]
 public class CharacterData : ScriptableObject
 {
@@ -47,9 +45,8 @@ public class CharacterData : ScriptableObject
 
     [Header("Battle Visuals")]
     [SerializeField] private RuntimeAnimatorController battleAnimator;
-    [SerializeField] private Sprite battleSprite; // Static fallback if no animator
+    [SerializeField] private Sprite battleSprite; // plain fallback sprite if there's no animator
 
-    // ── Properties ──────────────────────────────────────────────────────────
     public string Id                                    => id;
     public string Name                                  => characterName;
     public Sprite Icon                                  => icon;
@@ -72,8 +69,8 @@ public class CharacterData : ScriptableObject
     public Sprite BattleSprite                          => battleSprite;
 
 #if UNITY_EDITOR
-    // Auto-assign a stable GUID the first time this asset is created/inspected.
-    // Editor-only: ids are baked into the asset and never regenerated at runtime.
+    // Hand this asset a stable GUID the first time it's made or looked at. Editor-only:
+    // the id gets baked into the asset and never gets regenerated at runtime.
     private void OnValidate()
     {
         if (string.IsNullOrEmpty(id))

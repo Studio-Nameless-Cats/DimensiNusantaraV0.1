@@ -3,32 +3,29 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>
-/// Displays HP for one battle unit with a framed, two-layer "damage trail" bar.
-///
-/// How the two layers read:
-///   • <see cref="hpSlider"/>      — the MAIN fill. Snaps quickly to the new HP.
-///   • <see cref="damageTrailSlider"/> (optional) — a CHIP bar sitting BEHIND the
-///     main fill. On damage it holds at the old value, pauses briefly, then drains
-///     down to meet the main fill — the classic "you lost this much" flash.
-///     On heal it jumps up instantly so it never sits below the main fill.
-///
-/// Colours come from the shared <see cref="UITheme"/> (via UIThemeProvider.Active)
-/// so the bar matches the rest of the batik/wood UI. If no theme is present it
-/// falls back to plain green/yellow/red.
-///
-/// ── Unity setup (one per BattleUnit) ────────────────────────────────────────
-///   NameText          → TextMeshProUGUI
-///   HpSlider          → Slider (Min=0, Max=1, Interactable OFF). Its Fill Image
-///                       is what gets tinted by the HP gradient.
-///   DamageTrailSlider → (optional) a second Slider stacked directly UNDER the
-///                       HpSlider in the hierarchy (drawn first = behind). Same
-///                       rect/size. Give its Fill a flat trail colour (see
-///                       trailColor). Min=0, Max=1, Interactable OFF.
-///   HpText            → TextMeshProUGUI ("current / max")
-///   Frame             → (optional) the framed panel RectTransform to punch on hit.
-///                       Add a ThemedElement (Role = Panel) to it for the 9-slice.
-/// </summary>
+// The little HP box above one battle unit, with a two-layer "damage trail" bar.
+//
+// Two bars stacked on top of each other:
+//   - hpSlider: the main fill. Snaps quickly to the new HP.
+//   - damageTrailSlider (optional): a "chip" bar sitting behind the main one.
+//     When you take damage it stays at the old value for a beat, then slides
+//     down to catch up. That's the classic "ouch, you lost this much" flash.
+//     On a heal it just jumps up instantly so it never lags below the main fill.
+//
+// Colours come from the shared UITheme (UIThemeProvider.Active) so the bar
+// matches the rest of the batik/wood UI. No theme around? Falls back to plain
+// green/yellow/red.
+//
+// Unity setup (one of these per BattleUnit):
+//   NameText          -> TextMeshProUGUI
+//   HpSlider          -> Slider (Min=0, Max=1, Interactable OFF). Its Fill Image
+//                        is the bit that gets tinted by the HP gradient.
+//   DamageTrailSlider -> (optional) a second Slider stacked right under HpSlider
+//                        in the hierarchy (drawn first = behind). Same size.
+//                        Give its Fill a flat trail colour (see trailColor).
+//   HpText            -> TextMeshProUGUI ("current / max")
+//   Frame             -> (optional) the framed panel to punch-scale on a hit.
+//                        Add a ThemedElement (Role = Panel) for the 9-slice.
 public class BattleHud : MonoBehaviour
 {
     [Header("References")]
@@ -85,7 +82,7 @@ public class BattleHud : MonoBehaviour
     [SerializeField] private float hitPunchScale = 1.06f;
     [SerializeField] private float hitPunchTime  = 0.12f;
 
-    // ── State ────────────────────────────────────────────────────────────────
+    // Internal bookkeeping.
     private float     targetFill;
     private Coroutine mainCoroutine;
     private Coroutine trailCoroutine;
@@ -106,9 +103,7 @@ public class BattleHud : MonoBehaviour
         if (mpFill != null) mpFill.color = mpColor;
     }
 
-    // ── Public API ────────────────────────────────────────────────────────────
-
-    /// <summary>Populates the HUD instantly (called when battle starts).</summary>
+    // Fill in everything instantly. Called when the battle kicks off.
     public void SetData(PartyMember member)
     {
         if (nameText != null) nameText.text = member.Name;
@@ -121,35 +116,33 @@ public class BattleHud : MonoBehaviour
         RefreshHpText(member);
 
         UpdateResources(member);
-        ShowStatuses(member.Statuses);   // clears any leftover badges (empty at battle start)
+        ShowStatuses(member.Statuses);   // wipes any leftover badges (none at battle start)
     }
 
-    /// <summary>
-    /// Refreshes the status-effect badges from the member's active statuses. Pools one
-    /// <see cref="StatusIcon"/> per status and hides the rest. No-ops if the optional
-    /// container/prefab aren't wired (e.g. enemy HUDs that don't show statuses).
-    /// </summary>
+    // Redraws the status-effect badges from whatever statuses the member has right now.
+    // Reuses one StatusIcon per status and hides the spares. Does nothing if the
+    // optional container/prefab aren't wired (e.g. enemy HUDs don't bother with these).
     public void ShowStatuses(System.Collections.Generic.IReadOnlyList<StatusEffectInstance> statuses)
     {
         if (statusIconContainer == null || statusIconPrefab == null) return;
 
         int count = statuses != null ? statuses.Count : 0;
 
-        // Grow the pool to cover the active statuses.
+        // Make more icons if we don't have enough for all the active statuses.
         while (statusIconPool.Count < count)
         {
             var go  = Instantiate(statusIconPrefab, statusIconContainer);
             var ico = go.GetComponent<StatusIcon>();
             if (ico == null)
             {
-                Debug.LogError("[BattleHud] statusIconPrefab has no StatusIcon component! ❌");
+                Debug.LogError("[BattleHud] statusIconPrefab has no StatusIcon component!");
                 Destroy(go);
                 break;
             }
             statusIconPool.Add(ico);
         }
 
-        // Paint / hide.
+        // Fill in the ones we need, hide the rest.
         for (int i = 0; i < statusIconPool.Count; i++)
         {
             if (i < count) statusIconPool[i].Set(statuses[i]);
@@ -157,11 +150,9 @@ public class BattleHud : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Refreshes the MP bar + Special gauge (instant, no tween). Safe to call any time
-    /// a member spends MP or charges the Special gauge. No-ops on HUDs that don't wire
-    /// these optional sliders (e.g. enemy HUDs).
-    /// </summary>
+    // Repaints the MP bar and Special gauge instantly (no animation). Call this
+    // whenever a member spends MP or charges up. Does nothing if those optional
+    // sliders aren't wired (enemy HUDs skip them).
     public void UpdateResources(PartyMember member)
     {
         if (mpSlider != null)
@@ -182,17 +173,17 @@ public class BattleHud : MonoBehaviour
         }
     }
 
-    /// <summary>Updates the HP bar with tween + damage trail (called after damage/heal).</summary>
+    // Updates the HP bar with the slide animation + damage trail. Call after damage/heal.
     public void UpdateHP(PartyMember member)
     {
         float previous = targetFill;
         targetFill = NormalizedHp(member);
         RefreshHpText(member);
-        UpdateResources(member);   // HP changes often coincide with a Special-gauge charge
+        UpdateResources(member);   // taking a hit often charges the Special gauge too
 
         bool tookDamage = targetFill < previous - 0.0001f;
 
-        // Main fill always tweens toward the new value.
+        // The main fill always slides toward the new value.
         if (mainCoroutine != null) StopCoroutine(mainCoroutine);
         mainCoroutine = StartCoroutine(AnimateMain());
 
@@ -200,13 +191,13 @@ public class BattleHud : MonoBehaviour
         {
             if (tookDamage)
             {
-                // Trail holds at the old value, then drains down to meet the fill.
+                // Trail waits at the old value, then drains down to meet the fill.
                 if (trailCoroutine != null) StopCoroutine(trailCoroutine);
                 trailCoroutine = StartCoroutine(AnimateTrail());
             }
             else
             {
-                // Heal (or no change): trail jumps up so it never sits below the fill.
+                // Healed (or no change): snap the trail up so it never sits below the fill.
                 if (trailCoroutine != null) { StopCoroutine(trailCoroutine); trailCoroutine = null; }
                 damageTrailSlider.value = targetFill;
             }
@@ -219,7 +210,7 @@ public class BattleHud : MonoBehaviour
         }
     }
 
-    // ── Coroutines ────────────────────────────────────────────────────────────
+    // The actual animation loops.
 
     private IEnumerator AnimateMain()
     {
@@ -249,13 +240,13 @@ public class BattleHud : MonoBehaviour
         Vector3 peak = frameBaseScale * hitPunchScale;
         float half = hitPunchTime * 0.5f;
 
-        // Out
+        // Scale up...
         for (float t = 0f; t < half; t += Time.deltaTime)
         {
             frame.localScale = Vector3.Lerp(frameBaseScale, peak, t / half);
             yield return null;
         }
-        // Back
+        // ...and back down.
         for (float t = 0f; t < half; t += Time.deltaTime)
         {
             frame.localScale = Vector3.Lerp(peak, frameBaseScale, t / half);
@@ -264,9 +255,9 @@ public class BattleHud : MonoBehaviour
         frame.localScale = frameBaseScale;
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // Small helpers.
 
-    /// <summary>Tints the main fill via the theme HP gradient (green→gold→red).</summary>
+    // Tints the main fill using the theme's HP gradient (green to gold to red).
     private void UpdateFillColor()
     {
         var fill = hpSlider.fillRect?.GetComponent<Image>();

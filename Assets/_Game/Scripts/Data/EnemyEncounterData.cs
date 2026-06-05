@@ -1,11 +1,9 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>
-/// ScriptableObject that defines which enemies can appear in a specific area.
-/// Assign this to EncounterTrigger components on grass/encounter zones.
-/// Create via: Right-click in Project → RPG → Enemy Encounter
-/// </summary>
+// A ScriptableObject that says which enemies can show up in a given area.
+// Assign it to EncounterTrigger components on grass / encounter zones.
+// Make one with: Right-click in Project -> RPG -> Enemy Encounter
 [CreateAssetMenu(fileName = "New Encounter", menuName = "RPG/Enemy Encounter")]
 public class EnemyEncounterData : ScriptableObject
 {
@@ -25,9 +23,7 @@ public class EnemyEncounterData : ScriptableObject
     [SerializeField] [Range(1, 4)] private int minEnemies = 1;
     [SerializeField] [Range(1, 4)] private int maxEnemies = 3;
 
-    /// <summary>
-    /// Returns a random list of CharacterData for the enemies in this encounter.
-    /// </summary>
+    // Rolls up a random batch of enemies for this encounter and hands back their CharacterData.
     public List<CharacterData> GetRandomEnemies()
     {
         var result = new List<CharacterData>();

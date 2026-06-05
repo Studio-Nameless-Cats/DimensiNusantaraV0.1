@@ -3,33 +3,31 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>Precision tier for a single parry tap.</summary>
+// How well a single parry tap landed.
 public enum ParryTier { Miss, Good, Perfect }
 
-/// <summary>
-/// One Osu-style TAP circle in a Parry prompt. A FIXED hit circle (this button)
-/// sits still while a separate APPROACH RING shrinks from large down onto it.
-/// The player taps when the ring overlaps the hit circle; how closely they align
-/// at tap-time sets the precision tier (Perfect / Good / Miss).
-///
-/// Flow:
-///   1. ParrySystem calls Activate(duration).
-///   2. The approach ring shrinks startSize → minSize over 'duration', passing
-///      through the hit-circle size (= perfect alignment) partway through.
-///   3. Tap inside the scoring band → Perfect/Good (window closes).
-///      Tap while the ring is still far too big → ignored (too early, keep waiting).
-///      Ring shrinks past the band / time runs out with no tap → Miss.
-///   4. Brief tier-coloured feedback, then the button hides itself.
-///
-/// Prefab layout:
-///   Root (hit circle: Button + Image + ParryButton)
-///     ├── LabelText    (TMP — "TAP")
-///     └── ApproachRing (Image — HOLLOW ring sprite; size driven at runtime)
-///
-/// Assign 'approachRing' to the ApproachRing child's RectTransform. The script
-/// forces it concentric (centre anchor + pivot, zero offset) every Activate, so a
-/// mis-anchored prefab can't drift it off-centre while it scales.
-/// </summary>
+// One Osu-style TAP circle in a parry prompt. The hit circle (this button) just sits
+// there while a separate approach ring shrinks down onto it from big. The player taps
+// when the ring lines up with the hit circle, and how close they are when they tap
+// decides the tier: Perfect, Good, or Miss.
+//
+// How it goes:
+//   1. ParrySystem calls Activate(duration).
+//   2. The ring shrinks from big down to small over 'duration', passing through the
+//      hit-circle size (that's the perfect spot) somewhere in the middle.
+//   3. Tap when the ring's close enough -> Perfect or Good, and the window closes.
+//      Tap way too early while the ring's still huge -> ignored, just keep waiting.
+//      Ring shrinks past the sweet spot or time runs out with no tap -> Miss.
+//   4. Flash a colour for the tier, then the button hides itself.
+//
+// Prefab layout:
+//   Root (hit circle: Button + Image + ParryButton)
+//     - LabelText    (TMP, says "TAP")
+//     - ApproachRing (Image, a HOLLOW ring sprite; its size is set at runtime)
+//
+// Assign 'approachRing' to the ApproachRing child's RectTransform. Every Activate the
+// script forces it dead-centre (centre anchor + pivot, zero offset), so even a
+// badly-anchored prefab can't make the ring drift off-centre as it shrinks.
 public class ParryButton : MonoBehaviour
 {
     [Header("References")]
@@ -58,14 +56,11 @@ public class ParryButton : MonoBehaviour
     [Tooltip("How long the tier-coloured feedback shows before the button disappears.")]
     [SerializeField] private float feedbackDuration = 0.25f;
 
-    // ── State ─────────────────────────────────────────────────────────────────
-    /// <summary>Precision tier of this circle once its window has closed.</summary>
+    // How well this circle was tapped, readable once its window has closed.
     public ParryTier Result { get; private set; } = ParryTier.Miss;
 
     private bool  windowOpen      = false;
     private float currentRingSize = 0f;
-
-    // ── Unity lifecycle ───────────────────────────────────────────────────────
 
     void Awake()
     {
@@ -73,24 +68,19 @@ public class ParryButton : MonoBehaviour
         if (btn != null)
             btn.onClick.AddListener(HandleTap);
         else
-            Debug.LogWarning("[ParryButton] No Button component on root. ❌ Add one.");
+            Debug.LogWarning("[ParryButton] No Button component on root. Add one.");
 
-        // Start hidden — ParrySystem will enable via Activate()
+        // Start hidden. ParrySystem turns us on via Activate().
         gameObject.SetActive(false);
     }
 
-    // ── Public API ────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Runs the full lifecycle of one parry circle:
-    ///   show → ring shrinks over 'duration' → tier feedback → hide.
-    /// Await this coroutine; read <see cref="Result"/> afterward.
-    /// Pass an optional <paramref name="timerBar"/> (0..1) to mirror the tap window:
-    /// it starts full and drains to 0 over 'duration', stopping early on a tap.
-    /// </summary>
+    // Handles one parry circle from start to finish: pop it up, shrink the ring over
+    // 'duration', flash the tier colour, then hide. Await this, then read Result.
+    // Pass an optional timerBar (0..1) to mirror the tap window: it starts full and
+    // drains to 0 over 'duration', stopping early if they tap.
     public IEnumerator Activate(float duration, Slider timerBar = null)
     {
-        // ── Reset ─────────────────────────────────────────────────────────────
+        // Reset for a fresh circle.
         Result          = ParryTier.Miss;
         windowOpen      = true;
         currentRingSize = approachRingStartSize;
@@ -105,7 +95,7 @@ public class ParryButton : MonoBehaviour
 
         if (approachRing)
         {
-            // Force concentric so scaling can never drift the ring off the hit circle.
+            // Force it dead-centre so shrinking can never push the ring off the hit circle.
             approachRing.anchorMin        = new Vector2(0.5f, 0.5f);
             approachRing.anchorMax        = new Vector2(0.5f, 0.5f);
             approachRing.pivot            = new Vector2(0.5f, 0.5f);
@@ -116,7 +106,8 @@ public class ParryButton : MonoBehaviour
 
         gameObject.SetActive(true);
 
-        // ── Shrink ring start → min (passes through hitCircleSize = perfect) ────
+        // Shrink the ring from big to small. It passes through hitCircleSize (the perfect
+        // spot) on the way down.
         float elapsed = 0f;
         while (elapsed < duration && windowOpen)
         {
@@ -127,15 +118,15 @@ public class ParryButton : MonoBehaviour
             if (approachRing)
                 approachRing.sizeDelta = new Vector2(currentRingSize, currentRingSize);
 
-            if (timerBar) timerBar.value = 1f - t;   // drains full → empty over the window
+            if (timerBar) timerBar.value = 1f - t;   // drains full to empty over the window
 
             yield return null;
         }
 
         windowOpen = false;
-        if (timerBar) timerBar.value = 0f;            // snap empty when the window closes (tap or timeout)
+        if (timerBar) timerBar.value = 0f;            // snap to empty when the window closes (tap or timeout)
 
-        // ── Feedback (tier colour) ──────────────────────────────────────────────
+        // Flash the colour for whatever tier they got.
         if (buttonImage)
             buttonImage.color = Result == ParryTier.Perfect ? perfectColor
                               : Result == ParryTier.Good    ? goodColor
@@ -145,28 +136,26 @@ public class ParryButton : MonoBehaviour
 
         yield return new WaitForSeconds(feedbackDuration);
 
-        // ── Cleanup ───────────────────────────────────────────────────────────
-        if (approachRing) approachRing.gameObject.SetActive(true); // restore for reuse
+        // Tidy up so the button's ready to be reused next time.
+        if (approachRing) approachRing.gameObject.SetActive(true);
         gameObject.SetActive(false);
 
-        Debug.Log($"[ParryButton] Window closed — {Result}.");
+        Debug.Log($"[ParryButton] Window closed, result: {Result}.");
     }
-
-    // ── Tap handler ───────────────────────────────────────────────────────────
 
     private void HandleTap()
     {
         if (!windowOpen) return;
 
-        // Too early — ring still well outside the hit circle. Ignore the tap and let
-        // the player wait for alignment rather than punishing a premature click.
+        // Way too early, ring's still nowhere near the hit circle. Just ignore the tap
+        // and let them wait for it to line up, rather than punishing an eager click.
         if (currentRingSize > hitCircleSize + goodThreshold) return;
 
         float delta = Mathf.Abs(currentRingSize - hitCircleSize);
         Result     = delta <= perfectThreshold ? ParryTier.Perfect
                    : delta <= goodThreshold    ? ParryTier.Good
                                                : ParryTier.Miss;
-        windowOpen = false; // closes the Activate loop early
-        Debug.Log($"[ParryButton] Tapped at ring {currentRingSize:F0}px (Δ{delta:F0}) → {Result}.");
+        windowOpen = false; // ends the shrink loop in Activate early
+        Debug.Log($"[ParryButton] Tapped at ring {currentRingSize:F0}px (off by {delta:F0}) -> {Result}.");
     }
 }

@@ -1,25 +1,22 @@
 namespace Nusantara.SaveSystem
 {
-    /// <summary>
-    /// Optional extension seam for modular systems (quests, inventory, flags, etc.).
-    ///
-    /// The CORE systems — party, player position, defeated-enemy registry — are
-    /// captured directly by <c>SaveManager</c> because they need precise ordering
-    /// and are foundational. FUTURE systems implement this interface and register
-    /// with <c>SaveManager.Register(this)</c> in OnEnable / Unregister in OnDisable.
-    /// They read and write their own blob via <see cref="SaveData.GetModule"/> /
-    /// <see cref="SaveData.SetModule"/> under a unique <see cref="Key"/>, so adding
-    /// a system never edits the core SaveData sections.
-    /// </summary>
+    // A plug-in point for bolt-on systems later (quests, inventory, flags, that kind of thing).
+    //
+    // The core stuff (party, player position, the defeated-enemy registry) gets captured
+    // straight by SaveManager because it's foundational and the ordering matters. Anything
+    // added later just implements this interface and registers itself with
+    // SaveManager.Register(this) in OnEnable (and Unregister in OnDisable). It reads and
+    // writes its own little blob through SaveData.GetModule / SetModule under its own
+    // unique Key, so bolting on a new system never means touching the core SaveData.
     public interface ISaveParticipant
     {
-        /// <summary>Unique, stable module key (e.g. "quests", "inventory").</summary>
+        // A unique, never-changing key for this module (e.g. "quests", "inventory").
         string Key { get; }
 
-        /// <summary>Write this system's state into the snapshot (typically via data.SetModule).</summary>
+        // Write this system's state into the snapshot (usually via data.SetModule).
         void Capture(SaveData data);
 
-        /// <summary>Read this system's state back from the snapshot (typically via data.GetModule).</summary>
+        // Read this system's state back out of the snapshot (usually via data.GetModule).
         void Restore(SaveData data);
     }
 }
