@@ -106,7 +106,15 @@ public class BattleUnit : MonoBehaviour
         }
 
         if (hud != null)
+        {
             hud.SetData(member);
+            // Players and enemies share one prefab, so the MP/Special sliders exist on
+            // every unit. Show them for the whole team (any isPlayer unit), hide them on
+            // enemies. This is per-unit, so EVERY party member gets the meters, not just
+            // the main character.
+            if (!isPlayer)
+                hud.HideResources();
+        }
         else
             Debug.LogWarning($"[BattleUnit] '{partyMember.Name}' has no BattleHud assigned, so the HP bar won't show.");
     }

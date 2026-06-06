@@ -198,6 +198,18 @@ public class BattleHud : MonoBehaviour
         }
     }
 
+    // Hides the MP bar + Special gauge on this HUD. Players and enemies share one
+    // BattleUnit prefab, so the sliders exist on every unit; BattleUnit.Setup calls this
+    // for enemies so only the team shows MP/Special. Every team member keeps them (this
+    // is per-HUD, not just the main character). Safe if the sliders aren't wired.
+    public void HideResources()
+    {
+        if (mpSlider != null)      mpSlider.gameObject.SetActive(false);
+        if (mpText != null)        mpText.gameObject.SetActive(false);
+        if (specialSlider != null) specialSlider.gameObject.SetActive(false);
+        if (specialText != null)   specialText.gameObject.SetActive(false);
+    }
+
     // Updates the HP bar with the slide animation + damage trail. Call after damage/heal.
     public void UpdateHP(PartyMember member)
     {
