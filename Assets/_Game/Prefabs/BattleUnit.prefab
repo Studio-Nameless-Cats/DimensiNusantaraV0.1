@@ -530,7 +530,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: -1, z: 0}
-  m_LocalScale: {x: 0.5, y: 0.5, z: 0.5}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 524006113690164218}
@@ -766,6 +766,7 @@ GameObject:
   - component: {fileID: 1027902620792196155}
   - component: {fileID: 4503275874825142936}
   - component: {fileID: 1210616117947622832}
+  - component: {fileID: 755396910701973657}
   m_Layer: 0
   m_Name: 'HudCanvas '
   m_TagString: Untagged
@@ -880,6 +881,8 @@ MonoBehaviour:
   specialText: {fileID: 0}
   specialColor: {r: 0.95, g: 0.75, b: 0.2, a: 1}
   specialReadyColor: {r: 1, g: 0.45, b: 0.15, a: 1}
+  statusIconContainer: {fileID: 0}
+  statusIconPrefab: {fileID: 0}
   damageTrailSlider: {fileID: 0}
   frame: {fileID: 0}
   animSpeed: 1.5
@@ -888,6 +891,20 @@ MonoBehaviour:
   trailColor: {r: 0.95, g: 0.95, b: 0.95, a: 1}
   hitPunchScale: 1.06
   hitPunchTime: 0.12
+  motionProfile: {fileID: 11400000, guid: 02b1f5212c5b26140a15b95ecde51d21, type: 2}
+  entranceDelay: 0
+--- !u!225 &755396910701973657
+CanvasGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7973420730951914471}
+  m_Enabled: 1
+  m_Alpha: 1
+  m_Interactable: 1
+  m_BlocksRaycasts: 1
+  m_IgnoreParentGroups: 0
 --- !u!1 &8060893404048958280
 GameObject:
   m_ObjectHideFlags: 0

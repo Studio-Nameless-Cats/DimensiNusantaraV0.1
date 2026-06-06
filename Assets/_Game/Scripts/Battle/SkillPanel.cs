@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using DG.Tweening;
+using Nusantara.UI.Motion;
 
 // The skill-picker overlay that pops up on top of the 4-button command menu when the
 // player hits SKILL or SPECIAL SKILL. It shows one SkillCard per skill (dimmed if you
@@ -43,11 +45,17 @@ public class SkillPanel : MonoBehaviour
     [Tooltip("Parent (with a Layout Group) the cards spawn under.")]
     [SerializeField] private Transform cardsContainer;
 
+    [Header("Motion (optional)")]
+    [Tooltip("Assign to make the cards pop in (cascade) and the picker pop out when chosen/cancelled. Leave null for instant show/hide.")]
+    [SerializeField] private MotionProfile motionProfile;
+
     private readonly List<SkillCard> pool = new List<SkillCard>();
     private Action<SkillData> onComplete;
+    private Vector3 _cardsHome = Vector3.one;   // cards container's resting scale
 
     void Awake()
     {
+        if (cardsContainer is RectTransform crt) _cardsHome = crt.localScale;
         if (panelRoot != null) panelRoot.SetActive(false);
     }
 
@@ -100,9 +108,28 @@ public class SkillPanel : MonoBehaviour
         }
 
         panelRoot.SetActive(true);
+
+        // Pop the visible cards in one after another (scale + fade, layout-safe).
+        if (motionProfile != null)
+        {
+            if (cardsContainer is RectTransform crt) { crt.DOKill(); crt.localScale = _cardsHome; }
+            var cards = ActiveCardRects(count);
+            // Reset to a clean scale first so a fast reopen mid-tween can't leave a card shrunk.
+            foreach (var r in cards) { r.DOKill(); r.localScale = Vector3.one; }
+            cards.ScaleCascade(motionProfile);
+        }
     }
 
     // --- Internals ---
+
+    // RectTransforms of the cards currently showing (the first 'count' in the pool).
+    private List<RectTransform> ActiveCardRects(int count)
+    {
+        var list = new List<RectTransform>(count);
+        for (int i = 0; i < count && i < pool.Count; i++)
+            if (pool[i] != null) list.Add((RectTransform)pool[i].transform);
+        return list;
+    }
 
     private void Choose(SkillData skill)
     {
@@ -122,7 +149,23 @@ public class SkillPanel : MonoBehaviour
 
     private void Hide()
     {
-        if (panelRoot) panelRoot.SetActive(false);
+        if (!panelRoot) return;
+
+        // No profile, or no container to scale? Just snap it off like before.
+        if (motionProfile == null || !(cardsContainer is RectTransform crt))
+        {
+            panelRoot.SetActive(false);
+            return;
+        }
+
+        // Shrink the cards away as a group, then disable the panel once it's gone.
+        crt.DOKill();
+        crt.ScalePopOut(motionProfile, _cardsHome)
+           .OnComplete(() =>
+           {
+               panelRoot.SetActive(false);
+               crt.localScale = _cardsHome;
+           });
     }
 
     private void EnsurePool(int needed)

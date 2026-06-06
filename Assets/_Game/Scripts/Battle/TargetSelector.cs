@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using DG.Tweening;
+using Nusantara.UI.Motion;
 
 // A little panel that lists the living enemies so the player can pick who to attack.
 //
@@ -37,10 +39,16 @@ public class TargetSelector : MonoBehaviour
     [Tooltip("Button prefab: root has Button + Image; child has TextMeshProUGUI for the label.")]
     [SerializeField] private GameObject targetButtonPrefab;
 
+    [Header("Motion (optional)")]
+    [Tooltip("Assign to make the target buttons pop in (cascade) and pop out on pick/cancel. Leave null for instant show/hide.")]
+    [SerializeField] private MotionProfile motionProfile;
+
     private readonly List<GameObject> spawnedButtons = new List<GameObject>();
+    private Vector3 _containerHome = Vector3.one;   // button container's resting scale
 
     void Awake()
     {
+        if (buttonContainer is RectTransform brt) _containerHome = brt.localScale;
         if (panelRoot != null) panelRoot.SetActive(false);
     }
 
@@ -99,13 +107,49 @@ public class TargetSelector : MonoBehaviour
         }
 
         panelRoot.SetActive(true);
+
+        // Pop the target buttons in one after another (scale + fade, layout-safe).
+        if (motionProfile != null)
+        {
+            if (buttonContainer is RectTransform brt) { brt.DOKill(); brt.localScale = _containerHome; }
+            var rects = new List<RectTransform>(spawnedButtons.Count);
+            foreach (var go in spawnedButtons)
+                if (go != null) rects.Add((RectTransform)go.transform);
+            rects.ScaleCascade(motionProfile);
+        }
     }
 
     // Hide the panel and clean up the buttons we spawned.
     public void Hide()
     {
-        if (panelRoot != null) panelRoot.SetActive(false);
-        ClearButtons();
+        if (panelRoot == null) { ClearButtons(); return; }
+
+        // No profile, or no container to scale? Snap it off like before.
+        if (motionProfile == null || !(buttonContainer is RectTransform brt))
+        {
+            panelRoot.SetActive(false);
+            ClearButtons();
+            return;
+        }
+
+        // Buttons stick around for the ~0.2s pop-out, so kill their clicks now —
+        // otherwise a quick second tap could pick a second target.
+        foreach (var go in spawnedButtons)
+        {
+            var b = go != null ? go.GetComponent<Button>() : null;
+            if (b != null) b.interactable = false;
+        }
+
+        // Shrink the buttons away as a group, THEN disable + destroy them (so they
+        // don't vanish before the pop-out plays).
+        brt.DOKill();
+        brt.ScalePopOut(motionProfile, _containerHome)
+           .OnComplete(() =>
+           {
+               panelRoot.SetActive(false);
+               brt.localScale = _containerHome;
+               ClearButtons();
+           });
     }
 
     private void ClearButtons()

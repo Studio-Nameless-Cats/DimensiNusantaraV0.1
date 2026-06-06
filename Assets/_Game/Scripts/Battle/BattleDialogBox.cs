@@ -1,8 +1,11 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using DG.Tweening;
+using Nusantara.UI.Motion;
 
 // The battle text box plus the player's command buttons (Attack / Skill /
 // Special Skill / Run).
@@ -26,11 +29,19 @@ public class BattleDialogBox : MonoBehaviour
     [SerializeField] private Button     specialSkillButton;
     [SerializeField] private Button     runButton;
 
+    [Header("Motion (optional)")]
+    [Tooltip("Assign to make the command buttons pop in (cascade) and the menu pop out when an action is chosen. Leave null for the old instant show/hide.")]
+    [SerializeField] private MotionProfile motionProfile;
+
     // Button events the BattleSystem listens to.
     public event Action OnAttackPressed;
     public event Action OnSkillPressed;
     public event Action OnSpecialPressed;
     public event Action OnRunPressed;
+
+    // The action panel's resting scale, grabbed before we ever animate it so the
+    // pop-out always returns to the right size.
+    private Vector3 _actionPanelHome = Vector3.one;
 
     void Awake()
     {
@@ -57,6 +68,9 @@ public class BattleDialogBox : MonoBehaviour
         skillButton?.onClick.AddListener(()        => OnSkillPressed?.Invoke());
         specialSkillButton?.onClick.AddListener(() => OnSpecialPressed?.Invoke());
         runButton?.onClick.AddListener(()          => OnRunPressed?.Invoke());
+
+        // Remember the panel's normal scale before anything animates it.
+        if (actionPanel != null) _actionPanelHome = actionPanel.transform.localScale;
 
         // On purpose: keep the buttons hidden at the start. They only pop up
         // when it's actually the player's turn.
@@ -87,7 +101,54 @@ public class BattleDialogBox : MonoBehaviour
 
     public void ShowActionSelector(bool visible)
     {
-        actionPanel?.SetActive(visible);
+        if (actionPanel == null) return;
+
+        // No profile wired? Behave exactly like before — instant on/off.
+        if (motionProfile == null)
+        {
+            actionPanel.SetActive(visible);
+            return;
+        }
+
+        RectTransform panelRt = (RectTransform)actionPanel.transform;
+        panelRt.DOKill();
+
+        if (visible)
+        {
+            panelRt.localScale = _actionPanelHome;
+            actionPanel.SetActive(true);
+            // Pop the four buttons in one after another (scale + fade, so it's safe
+            // even though they sit in a Layout Group). Reset to a clean scale first so
+            // a fast reopen mid-tween can't leave a button shrunk.
+            var rects = ActionButtonRects();
+            foreach (var r in rects) { r.DOKill(); r.localScale = Vector3.one; }
+            rects.ScaleCascade(motionProfile);
+        }
+        else if (actionPanel.activeSelf)
+        {
+            // Shrink the menu away, then actually disable it once the pop-out finishes.
+            panelRt.ScalePopOut(motionProfile, _actionPanelHome)
+                   .OnComplete(() =>
+                   {
+                       actionPanel.SetActive(false);
+                       panelRt.localScale = _actionPanelHome;
+                   });
+        }
+        else
+        {
+            actionPanel.SetActive(false);
+        }
+    }
+
+    // The four command buttons as RectTransforms, skipping any that aren't wired.
+    private List<RectTransform> ActionButtonRects()
+    {
+        var list = new List<RectTransform>(4);
+        if (attackButton)       list.Add((RectTransform)attackButton.transform);
+        if (skillButton)        list.Add((RectTransform)skillButton.transform);
+        if (specialSkillButton) list.Add((RectTransform)specialSkillButton.transform);
+        if (runButton)          list.Add((RectTransform)runButton.transform);
+        return list;
     }
 
     public void EnableButtons(bool enabled)

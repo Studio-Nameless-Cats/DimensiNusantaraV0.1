@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using DG.Tweening;
+using Nusantara.UI.Motion;
 
 // The Osu-style parry mini-game. When an enemy attacks, a string of TAP circles pops up.
 //
@@ -45,7 +47,15 @@ public class ParrySystem : MonoBehaviour
     [Tooltip("Keep circles this far from the container edge so they're fully visible.")]
     [SerializeField] private float spawnMargin    = 60f;
 
+    [Header("Motion (optional)")]
+    [Tooltip("Assign to pop the parry header in when the overlay appears. Leave null for instant.")]
+    [SerializeField] private MotionProfile motionProfile;
+    [Tooltip("The header/banner RectTransform to pop in (NOT the full-screen overlay, or the tap area would scale too). Leave null to skip the pop.")]
+    [SerializeField] private RectTransform popTarget;
+
     private List<ParryButton> pooledButtons = new List<ParryButton>();
+    private Vector3 _popHome = Vector3.one;   // popTarget's resting scale, captured once
+    private bool    _popHomeSet;
 
     void Awake()
     {
@@ -88,6 +98,7 @@ public class ParrySystem : MonoBehaviour
             hintText.text = "Tap semua lingkaran!";
 
         parryOverlay.SetActive(true);
+        PlayHeaderPopIn();
 
         // Make sure we've got enough circles ready to go.
         EnsurePool(buttonCount);
@@ -145,6 +156,16 @@ public class ParrySystem : MonoBehaviour
     }
 
     // --- Helpers ---
+
+    // Pops the header banner in when the overlay opens. Only touches popTarget so the
+    // full-screen tap area never gets scaled. No profile / no target = nothing happens.
+    private void PlayHeaderPopIn()
+    {
+        if (motionProfile == null || popTarget == null) return;
+        if (!_popHomeSet) { _popHome = popTarget.localScale; _popHomeSet = true; }
+        popTarget.DOKill();
+        popTarget.ScalePopIn(motionProfile, _popHome);
+    }
 
     // Make more circles if we need them. We build them once and reuse them every battle.
     private void EnsurePool(int needed)

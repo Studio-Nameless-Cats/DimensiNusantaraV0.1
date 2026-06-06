@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using Nusantara.UI.Motion;
 
 // Runs the turn-order bar you see during a fight. Spawns one TurnOrderSlot per unit,
 // lights up whoever's acting, and drops anyone who faints off the bar.
@@ -20,6 +21,10 @@ public class TurnOrderDisplay : MonoBehaviour
     [SerializeField] private GameObject   slotPrefab;
     [Tooltip("Parent transform with a Horizontal Layout Group.")]
     [SerializeField] private Transform    slotsContainer;
+
+    [Header("Motion (optional)")]
+    [Tooltip("Assign to cascade the slots in when the bar builds and pop the active slot each turn. Leave null for instant.")]
+    [SerializeField] private MotionProfile motionProfile;
 
     private List<TurnOrderSlot> slots = new List<TurnOrderSlot>();
     private List<BattleUnit>    order = new List<BattleUnit>();
@@ -59,8 +64,17 @@ public class TurnOrderDisplay : MonoBehaviour
                 continue;
             }
 
-            slot.Initialise(unit.Member.Base.Icon, unit.IsPlayerUnit);
+            slot.Initialise(unit.Member.Base.Icon, unit.IsPlayerUnit, motionProfile);
             slots.Add(slot);
+        }
+
+        // Cascade the slots in (scale + fade, safe inside the Horizontal Layout Group).
+        if (motionProfile != null)
+        {
+            var rects = new List<RectTransform>(slots.Count);
+            foreach (var s in slots)
+                if (s != null) rects.Add((RectTransform)s.transform);
+            rects.ScaleCascade(motionProfile);
         }
 
         Debug.Log($"[TurnOrderDisplay] Initialised with {slots.Count} slot(s).");

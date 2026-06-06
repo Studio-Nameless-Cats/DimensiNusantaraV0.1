@@ -3,6 +3,8 @@ using System.Collections;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using DG.Tweening;
+using Nusantara.UI.Motion;
 
 // The dice-roll popup. It cuts into a basic attack and lets the player roll a D20 to
 // try for a critical hit.
@@ -34,6 +36,12 @@ public class DiceRollUI : MonoBehaviour
     [SerializeField] private Slider timerBar;
     [SerializeField] private Button rollButton;
 
+    [Header("Motion (optional)")]
+    [Tooltip("Assign to make the dice popup punch in. Leave null for instant.")]
+    [SerializeField] private MotionProfile motionProfile;
+    [Tooltip("The modal CONTENT panel to scale in (not the full-screen dim). Defaults to modalRoot if left empty.")]
+    [SerializeField] private RectTransform popTarget;
+
     [Header("Settings")]
     [Tooltip("Seconds before auto-roll fires.")]
     [SerializeField] private float timerDuration    = 3f;
@@ -48,6 +56,8 @@ public class DiceRollUI : MonoBehaviour
     private static readonly Color NormalColor = new Color(0.80f, 0.80f, 0.80f); // grey
 
     private bool playerPressedRoll;
+    private Vector3 _popHome = Vector3.one;   // pop target's resting scale, captured once
+    private bool    _popHomeSet;
 
     void Awake()
     {
@@ -69,6 +79,7 @@ public class DiceRollUI : MonoBehaviour
         if (rollButton)     rollButton.interactable = true;
 
         modalRoot.SetActive(true);
+        PlayPopIn();
 
         // Tick the timer down (or stop early if they tap the roll button).
         float elapsed = 0f;
@@ -113,6 +124,19 @@ public class DiceRollUI : MonoBehaviour
     private void OnRollPressed()
     {
         playerPressedRoll = true;
+    }
+
+    // Punchy scale-in for the dice modal. Animates popTarget (or modalRoot if that's
+    // not set). No profile wired = it just appears.
+    private void PlayPopIn()
+    {
+        if (motionProfile == null) return;
+        RectTransform rt = popTarget != null ? popTarget : modalRoot.transform as RectTransform;
+        if (rt == null) return;
+
+        if (!_popHomeSet) { _popHome = rt.localScale; _popHomeSet = true; }
+        rt.DOKill();
+        rt.ScalePopIn(motionProfile, _popHome);
     }
 
     // Spins the die number for a bit, then lands it on the real value.

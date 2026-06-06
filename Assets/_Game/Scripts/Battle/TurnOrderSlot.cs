@@ -1,5 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
+using DG.Tweening;
+using Nusantara.UI.Motion;
 
 // One circle in the turn-order bar. Shows the character's icon, gets highlighted when
 // it's their turn, and greys out if they faint.
@@ -19,10 +21,14 @@ public class TurnOrderSlot : MonoBehaviour
     private static readonly Color FaintedColor = new Color(0.40f, 0.40f, 0.40f, 0.30f);
 
     private Color baseColor;
+    private const float ActiveScale = 1.18f;   // how much the acting slot pumps up
+    private MotionProfile _profile;            // optional; null = instant scale like before
 
-    // Call once at battle start to set the icon and the team colour.
-    public void Initialise(Sprite icon, bool isPlayer)
+    // Call once at battle start to set the icon and the team colour. Pass a profile to
+    // make the active-turn scale animate (pop) instead of snapping.
+    public void Initialise(Sprite icon, bool isPlayer, MotionProfile profile = null)
     {
+        _profile         = profile;
         baseColor        = isPlayer ? PlayerColor : EnemyColor;
         background.color = baseColor;
 
@@ -40,9 +46,24 @@ public class TurnOrderSlot : MonoBehaviour
     // Call this whenever the active turn changes.
     public void SetActive(bool isActive)
     {
-        background.color     = isActive ? ActiveColor : baseColor;
-        // Pump the active slot up a touch so it stands out.
-        transform.localScale = isActive ? Vector3.one * 1.18f : Vector3.one;
+        background.color = isActive ? ActiveColor : baseColor;
+
+        // Pump the active slot up a touch so it stands out — tweened if we have a
+        // profile, snapped otherwise.
+        float target = isActive ? ActiveScale : 1f;
+        if (_profile != null)
+        {
+            transform.DOKill();
+            ((RectTransform)transform)
+                .DOScale(Vector3.one * target, _profile.selectPopDuration)
+                .SetEase(_profile.selectPopEase, _profile.selectPopOvershoot)
+                .SetUpdate(_profile.useUnscaledTime)
+                .SetLink(gameObject);
+        }
+        else
+        {
+            transform.localScale = Vector3.one * target;
+        }
 
         // Keep the icon full-bright no matter what.
         if (iconImage != null)
@@ -52,7 +73,8 @@ public class TurnOrderSlot : MonoBehaviour
     // Call this when the unit faints to grey the slot out.
     public void SetFainted()
     {
-        background.color     = FaintedColor;
+        background.color = FaintedColor;
+        if (_profile != null) transform.DOKill();
         transform.localScale = Vector3.one;
 
         if (iconImage != null)

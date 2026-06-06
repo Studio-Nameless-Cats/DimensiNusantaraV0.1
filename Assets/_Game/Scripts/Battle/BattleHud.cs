@@ -2,6 +2,8 @@ using System.Collections;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using DG.Tweening;
+using Nusantara.UI.Motion;
 
 // The little HP box above one battle unit, with a two-layer "damage trail" bar.
 //
@@ -82,6 +84,12 @@ public class BattleHud : MonoBehaviour
     [SerializeField] private float hitPunchScale = 1.06f;
     [SerializeField] private float hitPunchTime  = 0.12f;
 
+    [Header("Entrance motion (optional)")]
+    [Tooltip("Assign to make this HUD pop in when the battle starts. Leave null to just appear.")]
+    [SerializeField] private MotionProfile motionProfile;
+    [Tooltip("Stagger this HUD's pop-in by this much, so several HUDs cascade instead of popping together. Set per unit (0, 0.06, 0.12...).")]
+    [SerializeField] private float entranceDelay = 0f;
+
     // Internal bookkeeping.
     private float     targetFill;
     private Coroutine mainCoroutine;
@@ -117,6 +125,23 @@ public class BattleHud : MonoBehaviour
 
         UpdateResources(member);
         ShowStatuses(member.Statuses);   // wipes any leftover badges (none at battle start)
+
+        PlayEntrance();
+    }
+
+    // Pops the whole HUD in when the battle opens. Scale + fade only, so it doesn't
+    // matter where the HUD sits or whether it's following a unit. Optional: no
+    // profile wired means the HUD just appears like before.
+    private void PlayEntrance()
+    {
+        if (motionProfile == null) return;
+        RectTransform rt = transform as RectTransform;
+        if (rt == null) return;
+
+        rt.DOKill();
+        Vector3 home = rt.localScale;
+        CanvasGroup cg = GetComponent<CanvasGroup>();   // optional fade if one's present
+        rt.ScalePopIn(motionProfile, home, cg).SetDelay(entranceDelay);
     }
 
     // Redraws the status-effect badges from whatever statuses the member has right now.
