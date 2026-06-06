@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using DG.Tweening;
+using TMPro;
 
 namespace Nusantara.UI.Motion
 {
@@ -46,12 +47,18 @@ namespace Nusantara.UI.Motion
             _baseScale = _rt.localScale;
             _baseX = _rt.anchoredPosition.x;
 
-            // auto-grab the fill from the Button if it wasn't wired by hand
-            if (fillGraphic == null)
+            // Resolve graphics to THIS button's own hierarchy. We accept a hand-wired
+            // ref only if it actually belongs to this button; otherwise we grab our
+            // own. This self-heals the classic mistake of every row pointing at one
+            // button's image/label (so they'd all recolor the same row on focus).
+            if (!BelongsToMe(fillGraphic))
             {
                 Button btn = GetComponent<Button>();
-                fillGraphic = btn != null ? btn.targetGraphic : GetComponent<Graphic>();
+                fillGraphic = btn != null && btn.targetGraphic != null ? btn.targetGraphic : GetComponent<Graphic>();
             }
+
+            if (!BelongsToMe(labelGraphic))
+                labelGraphic = FindOwnLabel(fillGraphic);
 
             if (fillGraphic != null)  _restFill = fillGraphic.color;
             if (labelGraphic != null) _restText = labelGraphic.color;
@@ -120,6 +127,26 @@ namespace Nusantara.UI.Motion
             if (profile == null) return;
             _rt.Pulse(profile);
             MotionEvents.RaiseConfirm();
+        }
+
+        // True only if 'g' exists and sits somewhere inside THIS button's hierarchy.
+        // (IsChildOf is true for the transform itself too, so a graphic on the button
+        // root counts.)
+        private bool BelongsToMe(Graphic g)
+        {
+            return g != null && g.transform.IsChildOf(transform);
+        }
+
+        // Digs through our own children for the label - the first Text/TMP graphic
+        // that isn't the fill. Returns null if the button has no text.
+        private Graphic FindOwnLabel(Graphic skip)
+        {
+            foreach (var g in GetComponentsInChildren<Graphic>(true))
+            {
+                if (g == skip) continue;
+                if (g is TMP_Text || g is Text) return g;
+            }
+            return null;
         }
 
         void OnDisable()

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
+using Nusantara.UI.Motion;
 
 // The big boss manager. It sticks around across scenes (DontDestroyOnLoad), runs the
 // game's state machine, and handles bouncing between the Overworld and Battle scenes.
@@ -32,8 +33,16 @@ public class GameController : MonoBehaviour
     [Header("References")]
     [SerializeField] private Fader fader;
 
+    [Header("Scene transition")]
+    [Tooltip("If on, battle enter/exit uses the Persona screen-wipe (a ScreenTransition in the scene) instead of the black fade. Falls back to the fader if no ScreenTransition is found. Each scene that wipes needs its own ScreenTransition with Reveal On Start ticked, so it uncovers itself on arrival.")]
+    [SerializeField] private bool preferScreenWipe = true;
+
     [Tooltip("Marker prefabs spawned in the overworld (e.g. bones at defeated-enemy positions). Optional — if null, no markers spawn.")]
     [SerializeField] private WorldMarkerData worldMarkerData;
+
+    // Set when we covered a scene change with a wipe, so OnSceneLoaded knows to skip the
+    // fader's fade-from-black (the destination scene's own ScreenTransition reveals itself).
+    private bool _wipeCoveredLastLoad;
 
     private GameState        state;
     private PlayerController player;
@@ -156,7 +165,11 @@ public class GameController : MonoBehaviour
                 Debug.LogError("[GameController] Didn't call StartBattle(), one of the required refs is null. See the log above.");
             }
 
-            if (fader != null)
+            // If we wiped in, the battle scene's own ScreenTransition reveals itself -
+            // skip the fade so we don't draw black over the wipe.
+            if (_wipeCoveredLastLoad)
+                _wipeCoveredLastLoad = false;
+            else if (fader != null)
                 StartCoroutine(fader.FadeFromBlack(0.4f));
         }
         else if (scene.name == overworldSceneName)
@@ -193,7 +206,10 @@ public class GameController : MonoBehaviour
 
             state = GameState.FreeRoam;
             Debug.Log("[GameController] Back in the Overworld, state set to FreeRoam.");
-            if (fader != null)
+            // Wiped back? The overworld's ScreenTransition reveals itself; skip the fade.
+            if (_wipeCoveredLastLoad)
+                _wipeCoveredLastLoad = false;
+            else if (fader != null)
                 StartCoroutine(fader.FadeFromBlack(0.5f));
         }
         else
@@ -299,6 +315,34 @@ public class GameController : MonoBehaviour
         StartCoroutine(TransitionToBattle(encounterData));
     }
 
+    // Covers the screen before a scene change. Prefers the current scene's
+    // ScreenTransition wipe (Persona-style), falling back to the black fader if there
+    // isn't one. Returns once the screen is fully covered, so it's safe to LoadScene
+    // right after. The destination scene uncovers itself via its own ScreenTransition
+    // (Reveal On Start) - that's why we set _wipeCoveredLastLoad, so OnSceneLoaded skips
+    // the fader's fade-from-black (which would otherwise draw black over the wipe).
+    private IEnumerator CoverForSceneChange()
+    {
+        ScreenTransition wipe = preferScreenWipe ? FindFirstObjectByType<ScreenTransition>() : null;
+
+        if (wipe != null)
+        {
+            wipe.Play();
+            yield return new WaitForSecondsRealtime(wipe.WipeDuration);
+            _wipeCoveredLastLoad = true;
+        }
+        else if (fader != null)
+        {
+            yield return fader.FadeToBlack(0.5f);
+            _wipeCoveredLastLoad = false;
+        }
+        else
+        {
+            _wipeCoveredLastLoad = false;
+            yield return null;
+        }
+    }
+
     private IEnumerator TransitionToBattle(EnemyEncounterData encounterData)
     {
         state = GameState.Battle;
@@ -325,10 +369,7 @@ public class GameController : MonoBehaviour
                   $"\n  Party members:   {pendingPartyMembers.Count} healthy member(s) copied" +
                   $"\n  Loading scene:   '{battleSceneName}'");
 
-        if (fader != null)
-            yield return fader.FadeToBlack(0.5f);
-        else
-            yield return null;
+        yield return CoverForSceneChange();
 
         SceneManager.LoadScene(battleSceneName);
     }
@@ -371,10 +412,7 @@ public class GameController : MonoBehaviour
             }
         }
 
-        if (fader != null)
-            yield return fader.FadeToBlack(0.5f);
-        else
-            yield return null;
+        yield return CoverForSceneChange();
 
         Debug.Log("[GameController] Returning to overworld.");
         SceneManager.LoadScene(overworldSceneName);

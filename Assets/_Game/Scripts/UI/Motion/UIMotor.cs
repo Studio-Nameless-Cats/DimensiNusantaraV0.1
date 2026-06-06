@@ -141,6 +141,24 @@ namespace Nusantara.UI.Motion
             return (Sequence)seq.ApplyMenuDefaults(p, items.Count > 0 && items[0] != null ? items[0].gameObject : null);
         }
 
+        // Staggered scale-pop for a list of items. Use this instead of Cascade when
+        // the items live inside a Layout Group (skill cards, command buttons, turn
+        // slots): a layout group rewrites anchoredPosition every frame, so a position
+        // slide fights it. Scale + fade are NOT touched by layout, so they're safe.
+        // Each item's current localScale is treated as its "home". Grabs a CanvasGroup
+        // off each item for the fade if one's there; works fine without one (scale only).
+        public static Sequence ScaleCascade(this IReadOnlyList<RectTransform> items, MotionProfile p, float startDelay = 0f)
+        {
+            Sequence seq = DOTween.Sequence();
+            for (int i = 0; i < items.Count; i++)
+            {
+                if (items[i] == null) continue;
+                CanvasGroup cg = items[i].GetComponent<CanvasGroup>();
+                seq.Insert(startDelay + i * p.cascadeStagger, items[i].ScalePopIn(p, items[i].localScale, cg));
+            }
+            return (Sequence)seq.ApplyMenuDefaults(p, items.Count > 0 && items[0] != null ? items[0].gameObject : null);
+        }
+
         // Same idea but in reverse - last item leaves first. Good for a menu
         // bailing out before a scene load.
         public static Sequence CascadeOut(this IReadOnlyList<RectTransform> items, MotionProfile p, IReadOnlyList<CanvasGroup> groups = null)

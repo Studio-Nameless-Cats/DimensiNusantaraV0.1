@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using DG.Tweening;
 
 namespace Nusantara.UI.Motion
@@ -120,6 +121,13 @@ namespace Nusantara.UI.Motion
                            _buttonRects[i].SkewSlideIn(profile, _buttonGroups[i]));
             }
 
+            // Tell the EventSystem the active row is the selected one. Without this the
+            // row only LOOKS selected (SetFocusedInstant), so hovering another row would
+            // light it up without un-lighting this one (two red rows), and keyboard /
+            // gamepad nav would have no starting point. SetFocusedInstant already set
+            // _focused, so MotionButton.OnSelect early-outs here - no double pop, no SFX.
+            SelectActiveButton();
+
             // 0.80 - version fades up
             if (versionText != null)
             {
@@ -128,6 +136,17 @@ namespace Nusantara.UI.Motion
             }
 
             _in.ApplyMenuDefaults(profile, gameObject);
+        }
+
+        // Points the EventSystem at the active row so focus is real, not just visual.
+        private void SelectActiveButton()
+        {
+            if (activeButtonIndex < 0 || activeButtonIndex >= buttons.Count) return;
+            MotionButton active = buttons[activeButtonIndex];
+            if (active == null) return;
+
+            EventSystem es = EventSystem.current;
+            if (es != null) es.SetSelectedGameObject(active.gameObject);
         }
 
         // Bails the menu out before a scene load: buttons leave in reverse cascade,
