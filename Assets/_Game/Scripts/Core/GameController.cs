@@ -33,6 +33,12 @@ public class GameController : MonoBehaviour
     [Header("References")]
     [SerializeField] private Fader fader;
 
+    [Header("Music")]
+    [Tooltip("AudioLibrary music id to play in the overworld. Empty = don't touch music here.")]
+    [SerializeField] private string overworldMusicId = "overworld";
+    [Tooltip("AudioLibrary music id to play during battle. Empty = don't touch music here.")]
+    [SerializeField] private string battleMusicId    = "battle";
+
     [Header("Scene transition")]
     [Tooltip("If on, battle enter/exit uses the Persona screen-wipe (a ScreenTransition in the scene) instead of the black fade. Falls back to the fader if no ScreenTransition is found. Each scene that wipes needs its own ScreenTransition with Reveal On Start ticked, so it uncovers itself on arrival.")]
     [SerializeField] private bool preferScreenWipe = true;
@@ -165,6 +171,9 @@ public class GameController : MonoBehaviour
                 Debug.LogError("[GameController] Didn't call StartBattle(), one of the required refs is null. See the log above.");
             }
 
+            // Swap to the battle track (crossfades; no-op if it's already playing).
+            PlaySceneMusic(battleMusicId);
+
             // If we wiped in, the battle scene's own ScreenTransition reveals itself -
             // skip the fade so we don't draw black over the wipe.
             if (_wipeCoveredLastLoad)
@@ -206,6 +215,10 @@ public class GameController : MonoBehaviour
 
             state = GameState.FreeRoam;
             Debug.Log("[GameController] Back in the Overworld, state set to FreeRoam.");
+
+            // Back to the overworld track (crossfades; no-op if already playing).
+            PlaySceneMusic(overworldMusicId);
+
             // Wiped back? The overworld's ScreenTransition reveals itself; skip the fade.
             if (_wipeCoveredLastLoad)
                 _wipeCoveredLastLoad = false;
@@ -313,6 +326,17 @@ public class GameController : MonoBehaviour
     private void OnEncounterTriggered(EnemyEncounterData encounterData)
     {
         StartCoroutine(TransitionToBattle(encounterData));
+    }
+
+    // Tells the AudioManager to play a track, if there is one and we were given an id.
+    // Safe to call any time: no AudioManager in the scene yet, or a blank id, just does
+    // nothing. PlayMusic already ignores a request for the track that's already on, so
+    // bouncing overworld->battle->overworld won't restart the overworld theme.
+    private void PlaySceneMusic(string musicId)
+    {
+        if (string.IsNullOrEmpty(musicId)) return;
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlayMusic(musicId);
     }
 
     // Covers the screen before a scene change. Prefers the current scene's
