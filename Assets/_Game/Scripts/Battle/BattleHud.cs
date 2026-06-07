@@ -190,7 +190,7 @@ public class BattleHud : MonoBehaviour
         {
             float n = (float)member.CurrentSpecial / PartyMember.SpecialMax;
             specialSlider.value = n;
-            if (specialText != null) specialText.text = $"{member.CurrentSpecial}%";
+            if (specialText != null) specialText.text = $"{member.CurrentSpecial}";
 
             var spFill = specialSlider.fillRect?.GetComponent<Image>();
             if (spFill != null)
