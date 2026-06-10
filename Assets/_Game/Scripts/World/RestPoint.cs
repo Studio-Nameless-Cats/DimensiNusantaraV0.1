@@ -52,6 +52,11 @@ public class RestPoint : MonoBehaviour
     [Tooltip("PartySystem to heal. If blank, we find one in the scene the first time the player rests.")]
     [SerializeField] private PartySystem party;
 
+    [Header("Prompt UI (optional)")]
+    [Tooltip("The 'Press E to Rest' prompt. Slides in when the player's near, out when they leave. " +
+             "Start its GameObject DISABLED in the scene so it begins hidden. Leave blank to skip.")]
+    [SerializeField] private Nusantara.UI.Motion.UIAnimator restPrompt;
+
     /// <summary>Fires after a successful rest. Phase B's TimeOfDay will subscribe here to advance the cycle.</summary>
     public event Action OnRestTaken;
 
@@ -71,12 +76,16 @@ public class RestPoint : MonoBehaviour
         if (other.GetComponent<PlayerController>() == null) return;
         playerInside = true;
         Debug.Log($"[RestPoint] '{name}': press {restKey} to rest.");
+        // slide the prompt in + start its idle loop
+        if (restPrompt != null) restPrompt.Show();
     }
 
     void OnTriggerExit(Collider other)
     {
         if (other.GetComponent<PlayerController>() == null) return;
         playerInside = false;
+        // slide the prompt back out, then it deactivates itself
+        if (restPrompt != null) restPrompt.Hide();
     }
 
     void Update()
@@ -98,6 +107,11 @@ public class RestPoint : MonoBehaviour
 
     private void DoRest()
     {
+        // prompt's job is done the moment they rest - slide it away. on the reload
+        // path the scene reload destroys it mid-slide, but DOTween's SetLink kills
+        // the tween cleanly, so this is safe either way.
+        if (restPrompt != null) restPrompt.Hide();
+
         // 1. Heal the party.
         if (party == null) party = FindFirstObjectByType<PartySystem>();
         if (party != null) party.HealAll();

@@ -33,6 +33,39 @@ namespace Nusantara.UI
         public static readonly Color ElemAngin  = Hex("5DCAA5");
         public static readonly Color ElemMistik = Hex("F4B400");
 
+        // Cool side + state colors.
+        // The warm palette never had a cool anchor, so it had no easy way to say "calm",
+        // "info" or "magic" without stealing a brand color. Nila is batik's indigo dye —
+        // the cool half of the classic soga (brown/gold) + nila (indigo) pairing — so it's
+        // both the color we were missing AND culturally the right one. The rest are clean
+        // state colors kept separate from the brand reds/yellows on purpose.
+        public static readonly Color Nila       = Hex("2B356E"); // indigo — cool anchor, magic
+        public static readonly Color NilaTerang = Hex("5C6BC0"); // lighter indigo — info / links
+        public static readonly Color Pirus      = Hex("1F9E86"); // teal — calm / water
+        public static readonly Color Pandan     = Hex("3FA34D"); // green — success only
+        public static readonly Color DangerDeep = Hex("A32D2D"); // deeper red, split out from Active
+
+        // Semantic roles — what a color MEANS, not what it looks like.
+        // UI code should reach for these instead of the raw colors above. That keeps
+        // "selected" (Accent) and "about to die" (Danger) as separate ideas even though
+        // both are reddish, and lets us remap any role in ONE place without chasing down
+        // call sites. Region themes (see ART_DESIGN_PLAN.md) will later override these.
+        public static class Role
+        {
+            public static readonly Color Accent        = Active;      // the thing that's selected / focused
+            public static readonly Color Danger        = DangerDeep;  // HP low, death, real warnings
+            public static readonly Color Magic         = Nila;        // SP, mystic, spirit stuff
+            public static readonly Color Info          = NilaTerang;  // tutorials, tips, links
+            public static readonly Color Success       = Pandan;      // heals, rewards, "done"
+            public static readonly Color Warning       = Secondary;   // caution — orange, not red
+            public static readonly Color Surface       = Panel;       // panel background
+            public static readonly Color SurfaceRaised = PanelRaised; // cells, chips
+            public static readonly Color FieldBg       = Field;       // the big yellow field
+            public static readonly Color OnDark        = TextLight;   // text on panels
+            public static readonly Color OnField       = TextOnYellow;// text on the field
+            public static readonly Color Muted         = TextMuted;   // sub-labels
+        }
+
         public struct Swatch
         {
             public readonly string Group;
@@ -63,6 +96,35 @@ namespace Nusantara.UI
             new Swatch("Element", "Tanah",  "639922", ElemTanah),
             new Swatch("Element", "Angin",  "5DCAA5", ElemAngin),
             new Swatch("Element", "Mistik", "F4B400", ElemMistik),
+
+            new Swatch("Cool / State", "Nila (indigo)",   "2B356E", Nila),
+            new Swatch("Cool / State", "Nila Terang",     "5C6BC0", NilaTerang),
+            new Swatch("Cool / State", "Pirus (teal)",    "1F9E86", Pirus),
+            new Swatch("Cool / State", "Pandan (green)",  "3FA34D", Pandan),
+            new Swatch("Cool / State", "Danger (deep)",   "A32D2D", DangerDeep),
+
+            // Apply by intent, not by look. These mirror the raw colors above.
+            // Heads-up: we point these at the RAW fields (Active, DangerDeep, ...) on purpose,
+            // NOT at Role.Accent etc. Role's values are just aliases of these same raw colors,
+            // but referencing Role.* here creates a static-init order cycle (Swatches needs
+            // Role, Role needs the outer class) that can snapshot the Role colors while they're
+            // still default transparent. The window then drew empty swatches. Using the raw
+            // fields, which are guaranteed set before Swatches runs, sidesteps the whole mess.
+            new Swatch("Role", "Accent (selected)", "E23A1E", Active),
+            new Swatch("Role", "Danger (HP/death)", "A32D2D", DangerDeep),
+            new Swatch("Role", "Magic (SP/mystic)", "2B356E", Nila),
+            new Swatch("Role", "Info (tips/links)",  "5C6BC0", NilaTerang),
+            new Swatch("Role", "Success (reward)",   "3FA34D", Pandan),
+            new Swatch("Role", "Warning (caution)",  "F57A1F", Secondary),
+
+            // The surface + text roles. These reuse the Core colors, but listing them here
+            // means the window shows the WHOLE role contract, not just the loud intent ones.
+            new Swatch("Role", "Surface (panel bg)",  "16110C", Panel),
+            new Swatch("Role", "Surface Raised (cell)", "221A12", PanelRaised),
+            new Swatch("Role", "Field Bg (yellow)",   "F4B400", Field),
+            new Swatch("Role", "On Dark (text)",      "EFE6D2", TextLight),
+            new Swatch("Role", "On Field (text)",     "1A1410", TextOnYellow),
+            new Swatch("Role", "Muted (sub-label)",   "9C8A66", TextMuted),
         };
 
         /// <summary>Parse "RRGGBB" or "RRGGBBAA" into a Color (opaque if no alpha).</summary>

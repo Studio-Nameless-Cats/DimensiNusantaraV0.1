@@ -25,11 +25,18 @@ public class NPCController : MonoBehaviour
     [TextArea(2, 5)]
     [SerializeField] private string[] dialogLines;
 
+    [Header("Prompt")]
+    [Tooltip("Verb shown on the interaction chip when the player's near, e.g. BICARA for talking.")]
+    [SerializeField] private string promptVerb = "BICARA";
+
     // ── State ────────────────────────────────────────────────────────────────
     private bool hasJoined = false;
 
     // ── Properties ───────────────────────────────────────────────────────────
     public CharacterData CharacterData => characterData;
+
+    // What the bottom-of-screen interaction chip should say for this NPC.
+    public string PromptVerb => promptVerb;
 
     // ── Interaction ──────────────────────────────────────────────────────────
 

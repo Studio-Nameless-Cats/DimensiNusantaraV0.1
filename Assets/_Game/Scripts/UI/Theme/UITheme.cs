@@ -1,5 +1,6 @@
 using UnityEngine;
 using TMPro;
+using Nusantara.UI;
 
 /// <summary>
 /// Shared batik/wood UI kit — the single source of truth for colors, sprites
@@ -22,37 +23,42 @@ public class UITheme : ScriptableObject
     // ── Palette ────────────────────────────────────────────────────────────
     // Named slots so element scripts never hard-code colours. Re-skinning the
     // whole game is editing these few fields.
+    // Defaults now pull from NusantaraPalette.Role.* so a fresh theme asset matches the
+    // locked charcoal+gold scheme out of the box. These are still serialized fields you can
+    // override per asset in the Inspector. Heads up: an asset SAVED before this change keeps
+    // its old values - Reset it (gear menu > Reset) to pick up the palette defaults.
     [Header("Palette — Surfaces")]
-    [Tooltip("Darkest wood — deep panel backgrounds, drop shadows.")]
-    public Color woodDark = new Color(0.231f, 0.165f, 0.102f, 1f);   // #3B2A1A
+    [Tooltip("Darkest surface — deep panel backgrounds, drop shadows.")]
+    public Color woodDark = NusantaraPalette.Role.Surface;          // was wood #3B2A1A
 
-    [Tooltip("Mid wood — default panel fill.")]
-    public Color woodMid = new Color(0.361f, 0.263f, 0.161f, 1f);    // #5C4329
+    [Tooltip("Raised surface — default panel fill, cells.")]
+    public Color woodMid = NusantaraPalette.Role.SurfaceRaised;     // was wood #5C4329
 
     [Tooltip("Parchment / cream — light surfaces, dialog interior.")]
-    public Color parchment = new Color(0.910f, 0.851f, 0.710f, 1f);  // #E8D9B5
+    // No "parchment" role exists, so borrow the palette's cream (Gading) - same job, light surface.
+    public Color parchment = NusantaraPalette.TextLight;            // Gading cream, was #E8D9B5
 
     [Header("Palette — Accents")]
-    [Tooltip("Batik gold — borders, highlights, primary accent.")]
-    public Color batikGold = new Color(0.788f, 0.635f, 0.153f, 1f);  // #C9A227
+    [Tooltip("Gold — borders, highlights, primary accent.")]
+    public Color batikGold = NusantaraPalette.Role.FieldBg;         // Kuning, was #C9A227
 
-    [Tooltip("Indigo — batik blue secondary accent.")]
-    public Color indigo = new Color(0.180f, 0.290f, 0.420f, 1f);     // #2E4A6B
+    [Tooltip("Indigo — cool/magic secondary accent.")]
+    public Color indigo = NusantaraPalette.Role.Magic;             // Nila, was #2E4A6B
 
     [Tooltip("Maroon — danger / negative accent (e.g. enemy side).")]
-    public Color maroon = new Color(0.549f, 0.176f, 0.102f, 1f);     // #8C2D1A
+    public Color maroon = NusantaraPalette.Role.Danger;            // DangerDeep, was #8C2D1A
 
     [Header("Palette — Text")]
-    [Tooltip("Light text on dark wood surfaces.")]
-    public Color textLight = new Color(0.957f, 0.910f, 0.784f, 1f);  // #F4E8C8
+    [Tooltip("Light text on dark surfaces.")]
+    public Color textLight = NusantaraPalette.Role.OnDark;          // Gading, was #F4E8C8
 
-    [Tooltip("Dark text on parchment surfaces.")]
-    public Color textDark = new Color(0.165f, 0.106f, 0.055f, 1f);   // #2A1B0E
+    [Tooltip("Dark text on parchment / field surfaces.")]
+    public Color textDark = NusantaraPalette.Role.OnField;          // Hitam, was #2A1B0E
 
     [Header("Palette — HP bar gradient")]
-    public Color hpHigh = new Color(0.314f, 0.667f, 0.275f, 1f);     // green
-    public Color hpMid  = new Color(0.847f, 0.706f, 0.196f, 1f);     // gold-yellow
-    public Color hpLow  = new Color(0.745f, 0.220f, 0.180f, 1f);     // red
+    public Color hpHigh = NusantaraPalette.Role.Success;           // Pandan green
+    public Color hpMid  = NusantaraPalette.Role.Warning;           // Jingga orange
+    public Color hpLow  = NusantaraPalette.Role.Danger;            // DangerDeep red
 
     // ── Sprites ─────────────────────────────────────────────────────────────
     [Header("Sprites — 9-slice")]

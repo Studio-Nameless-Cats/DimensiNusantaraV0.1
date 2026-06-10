@@ -3,6 +3,8 @@ using System.Text;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using Nusantara.UI.Motion;
+using UnityEngine.InputSystem;
 
 namespace Nusantara.UI
 {
@@ -37,7 +39,23 @@ namespace Nusantara.UI
     /// </summary>
     public class CharacterPanel : MonoBehaviour
     {
-        [Header("Member list")]
+        // Two ways to pick a character:
+        //   1. Arrow switcher (new look) - wire prevButton/nextButton/switcherNameText.
+        //      Click the arrows or press Q/E to cycle through the party, wraps around.
+        //   2. Member list (legacy) - wire membersContainer + memberButtonPrefab.
+        // Wire whichever the scene uses; the other half can stay null.
+
+        [Header("Character switcher (arrows + Q/E)")]
+        [Tooltip("Left arrow button - goes to the previous party member.")]
+        [SerializeField] private Button prevButton;
+        [Tooltip("Right arrow button - goes to the next party member.")]
+        [SerializeField] private Button nextButton;
+        [Tooltip("Big name label between the arrows (the 'BIMA' text).")]
+        [SerializeField] private TextMeshProUGUI switcherNameText;
+        [Tooltip("Optional motion profile - the name pulses when you switch. Null = no animation.")]
+        [SerializeField] private MotionProfile switchMotion;
+
+        [Header("Member list (legacy, leave null if using the switcher)")]
         [SerializeField] private Transform        membersContainer;
         [SerializeField] private MemberListButton memberButtonPrefab;
 
@@ -71,7 +89,38 @@ namespace Nusantara.UI
         /// <summary>True when the interactive loadout editor is wired up.</summary>
         private bool LoadoutInteractive => skillsContainer != null && skillTogglePrefab != null;
 
+        void Awake()
+        {
+            // Arrow clicks just cycle one step in either direction.
+            if (prevButton != null) prevButton.onClick.AddListener(() => Cycle(-1));
+            if (nextButton != null) nextButton.onClick.AddListener(() => Cycle(+1));
+        }
+
         void OnEnable() => Refresh();
+
+        void Update()
+        {
+            // Keyboard shortcuts for the switcher: Q = previous, E = next.
+            // Project runs on the new Input System, so we poll Keyboard.current.
+            var kb = Keyboard.current;
+            if (kb == null || _members.Count == 0) return;
+            if (kb.qKey.wasPressedThisFrame) Cycle(-1);
+            if (kb.eKey.wasPressedThisFrame) Cycle(+1);
+        }
+
+        // Step through the party, wrapping at both ends.
+        private void Cycle(int dir)
+        {
+            if (_members.Count == 0) return;
+            int next = (_selected + dir + _members.Count) % _members.Count;
+            if (next == _selected) return; // solo party, nothing to switch to
+
+            Select(next);
+
+            // Little pulse on the name so the switch feels snappy. Optional.
+            if (switchMotion != null && switcherNameText != null)
+                switcherNameText.rectTransform.Pulse(switchMotion);
+        }
 
         public void Refresh()
         {
@@ -89,6 +138,11 @@ namespace Nusantara.UI
             }
 
             BuildMemberButtons();
+
+            // Arrows only make sense with 2+ members; gray them out otherwise.
+            bool canCycle = _members.Count > 1;
+            if (prevButton != null) prevButton.interactable = canCycle;
+            if (nextButton != null) nextButton.interactable = canCycle;
 
             if (any) Select(Mathf.Clamp(_selected, 0, _members.Count - 1));
             else     ClearDetail();
@@ -135,6 +189,7 @@ namespace Nusantara.UI
             }
 
             if (nameText != null) nameText.text = m.Name;
+            if (switcherNameText != null) switcherNameText.text = m.Name;
 
             if (levelText != null) levelText.text = $"Lv {m.Level}";
 
@@ -229,7 +284,7 @@ namespace Nusantara.UI
         {
             if (m.IsUnlocked(s))
                 return $"• {s.Name}  <color={costColor}>({s.Cost} {costSuffix})</color>";
-            return $"<color=#777777>• {s.Name}  (Lv {s.UnlockLevel} 🔒)</color>";
+            return $"<color=#777777>• {s.Name}  (terkunci - Lv {s.UnlockLevel})</color>";
         }
 
         private static string BuildSpecialList(PartyMember m)
@@ -272,6 +327,7 @@ namespace Nusantara.UI
         {
             if (portrait  != null) portrait.enabled = false;
             if (nameText  != null) nameText.text  = "";
+            if (switcherNameText != null) switcherNameText.text = "";
             if (statsText != null) statsText.text = "";
             if (skillsText != null) skillsText.text = "";
             if (loadoutCountText != null) loadoutCountText.text = "";

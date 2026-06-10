@@ -3,6 +3,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using DG.Tweening;
+using Nusantara.UI;
 using Nusantara.UI.Motion;
 
 // The little HP box above one battle unit, with a two-layer "damage trail" bar.
@@ -41,7 +42,8 @@ public class BattleHud : MonoBehaviour
     [Tooltip("Optional 'current / max' MP label.")]
     [SerializeField] private TextMeshProUGUI mpText;
     [Tooltip("Flat colour for the MP fill.")]
-    [SerializeField] private Color           mpColor = new Color(0.30f, 0.55f, 0.95f, 1f);
+    // MP reads as the indigo "magic" role now (see GUIDE_Color_Usage). Frees red from doing mana duty.
+    [SerializeField] private Color           mpColor = NusantaraPalette.Role.Magic; // was a flat blue
 
     [Header("Special gauge (optional)")]
     [Tooltip("Per-battle Special gauge (0..100). Leave null on enemy HUDs.")]
@@ -49,9 +51,10 @@ public class BattleHud : MonoBehaviour
     [Tooltip("Optional Special % label.")]
     [SerializeField] private TextMeshProUGUI specialText;
     [Tooltip("Fill colour when the Special gauge is NOT yet full.")]
-    [SerializeField] private Color           specialColor      = new Color(0.95f, 0.75f, 0.20f, 1f);
+    // Charging = Warning (orange "building up"), ready = Accent (the "unleash now" pop). See GUIDE_Color_Usage.
+    [SerializeField] private Color           specialColor      = NusantaraPalette.Role.Warning;
     [Tooltip("Fill colour once the Special gauge is full (ready to unleash).")]
-    [SerializeField] private Color           specialReadyColor = new Color(1f, 0.45f, 0.15f, 1f);
+    [SerializeField] private Color           specialReadyColor = NusantaraPalette.Role.Accent;
 
     [Header("Status effects (optional)")]
     [Tooltip("Parent (with a Horizontal Layout Group) that holds the status badges. Leave null to disable the status display.")]
@@ -300,12 +303,14 @@ public class BattleHud : MonoBehaviour
         var fill = hpSlider.fillRect?.GetComponent<Image>();
         if (fill == null) return;
 
+        // No theme in the scene? Fall back to the palette's HP gradient roles
+        // (healthy -> careful -> dying) instead of raw green/yellow/red.
         var theme = UIThemeProvider.Active;
         fill.color = theme != null
             ? theme.HpColor(hpSlider.value)
-            : (hpSlider.value > 0.5f ? Color.green
-             : hpSlider.value > 0.25f ? Color.yellow
-             : Color.red);
+            : (hpSlider.value > 0.5f ? NusantaraPalette.Role.Success
+             : hpSlider.value > 0.25f ? NusantaraPalette.Role.Warning
+             : NusantaraPalette.Role.Danger);
     }
 
     private void RefreshHpText(PartyMember member)

@@ -4,6 +4,47 @@ Newest entries at the top. Each entry = one session. Keep tight: what shipped, f
 
 ---
 
+## 2026-06-09 (pt. 2) — UIAnimator wired to RestPoint + two efficiency passes
+
+**Shipped:** Hooked `UIAnimator` into the campfire rest prompt (proximity show/hide), then did two perf passes on `UIAnimator` itself: sub-canvas isolation and idle auto-pause when hidden. One more efficiency item (reusable tweens) is proposed but NOT built yet.
+
+**Files touched:**
+- `Assets/_Game/Scripts/World/RestPoint.cs` — added optional `restPrompt` (UIAnimator) field; `OnTriggerEnter` calls `restPrompt.Show()`, `OnTriggerExit` calls `restPrompt.Hide()` (both null-guarded). `DoRest()` now calls `restPrompt.Hide()` at the top so the prompt slides away on rest — fixes a lingering prompt on the no-reload path; safe on the reload path because DOTween's SetLink kills the tween when the scene reload destroys it.
+- `Assets/_Game/Scripts/UI/Motion/UIAnimator.cs` — two additions:
+  - **#1 Sub-canvas isolation:** `isolateOnOwnCanvas` (default on) + `EnsureIsolationCanvas()` in `Awake()`. Adds a nested `Canvas` (overrideSorting=false, no extra raycaster) so the element's motion only rebatches itself, not the whole parent HUD canvas.
+  - **#3 Idle auto-pause when hidden:** `pauseIdleWhenHidden` (default on); `OnCanvasGroupChanged()`/`OnCanvasHierarchyChanged()` callbacks drive `RefreshIdleForVisibility()`; public `PauseIdle()`/`ResumeIdle()` for an external culler; `IsEffectivelyVisible()` walks parent CanvasGroups/Canvases. Idle stops tweening + rebatching when a parent fades it out or a canvas above it switches off. Event-driven, so detection adds zero per-frame cost.
+
+**Key decisions:**
+1. RestPoint already detected enter/exit (existing `playerInside` trigger) — the prompt just hangs `Show()`/`Hide()` off those events; no new proximity logic. Prompt GameObject must start DISABLED in the scene so it begins hidden (UIAnimator treats wherever it sits as its visible "home").
+2. Efficiency philosophy: UIAnimator has no `Update()` loop, so a settled no-idle element already costs nothing. The two passes target the real waste — per-frame canvas rebatching from motion (#1) and idling while invisible (#3). Both use opt-out toggles, both default on since UIAnimator is for things that move.
+3. A hand `PauseIdle()` sets a flag that wins over the auto-visibility check, so a culling system can't be silently overridden.
+
+**Open questions / next steps:**
+- **Efficiency #2 (reusable tweens) NOT built.** Build the idle/entry/exit tweens once with `SetAutoKill(false)` and Pause/Restart instead of Kill+recreate per `Show()`. Only worth it once UIAnimator drives high-churn pooled UI (damage numbers, notifications). Defer until that use case exists.
+- **Unity wiring for the rest prompt:** build the prompt UI (circle + "Press E to Rest" curved text) under a Canvas, add UIAnimator (Entry = Move from left + Fade; Idle = BobVertical; Exit = Move out left + Fade), start its GameObject DISABLED, drag it into RestPoint's new `Rest Prompt` slot. Then Play Mode test: approach campfire (slides in + bobs), walk away (slides out), rest (slides away).
+- **Heads-up for next session:** the bash mount was serving a stale/truncated copy of UIAnimator.cs all session — the real file (via Read) is complete and balanced (474 lines). If verifying via bash, don't trust a short line count; cross-check with the Read tool.
+- **Note on Optional adjacent fix not taken:** RestPoint still has no "already rested" guard (player can re-trigger rest every frame they hold E while inside, on the no-reload path). Left out as out-of-scope; revisit if it matters.
+
+---
+
+## 2026-06-09 — Self-contained UIAnimator (single-element tween component)
+
+**Shipped:** A drop-on-one-element UI animator with Inspector-configured Entry / Exit / Idle. No Animator, no clips, no shared MotionProfile — every value tuned per instance. Built on DOTween to match the rest of the Motion system. The freeform counterpart to `PanelMotion` (which drives whole panels off the locked main-menu profile).
+
+**Files touched:**
+- `Assets/_Game/Scripts/UI/Motion/UIAnimator.cs` — NEW. Entry + Exit each animate any combo of Move / Scale / Fade / Rotate (per-channel toggles, per-instance duration / ease / overshoot / delay / offsets). Idle loop modes: Bob, Pan, Breathe, Rotate, Pulse. Captures rest pose once; `PlayIn()` / `PlayOut(onDone)` / `Show()` / `Hide()`; auto-plays on enable (`playInOnEnable`); idle starts after entry settles. Auto-adds a CanvasGroup only if a fade channel is on. Unscaled-time + `SetLink` per project convention.
+
+**Key decisions:**
+1. New component, not an extension of `PanelMotion`. PanelMotion is multi-element + profile-driven (consistent menu feel); UIAnimator is single-element + fully inline (one-off popups, toasts, floating icons, battle banners). Different job, kept separate.
+2. No shared `MotionProfile` dependency — values live on the component so each element can feel however the user wants, set right there.
+3. Exit must run via `Hide()` / `PlayOut()`, NOT `SetActive(false)` — a tween can't run on an already-inactive object. Hide() plays the exit then deactivates in the callback. Documented in the file header.
+
+**Open questions / next steps:**
+- Pure code — no Unity wiring done. To use: add `UIAnimator` to a UI element, tick the Entry/Exit channels and set the Idle mode in the Inspector, and call `Show()`/`Hide()` (or let `playInOnEnable` handle entry) instead of toggling SetActive directly.
+- Not yet verified in Play Mode — needs a quick in-editor sanity check (entry plays on enable, idle takes over, Hide() runs the exit before deactivating).
+
+---
+
 ## 2026-06-06 — Reusable PanelMotion + Pause Menu animations
 
 **Shipped:** A generic Inspector-driven panel animator (the cousin of `MenuSequencer`) and wired it into the Overworld pause menu. Battle UI is planned but not yet wired.

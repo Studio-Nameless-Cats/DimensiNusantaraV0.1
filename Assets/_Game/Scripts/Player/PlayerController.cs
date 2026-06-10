@@ -33,6 +33,9 @@ public class PlayerController : MonoBehaviour
     private Vector2 inputVector;
     private float   verticalVelocity;
 
+    // The interactable we're standing next to right now (drives the prompt chip).
+    private NPCController nearbyNpc;
+
     // Fired when the player walks into an encounter trigger.
     public event Action<EnemyEncounterData> OnEncounterTriggered;
 
@@ -49,6 +52,34 @@ public class PlayerController : MonoBehaviour
     public void HandleUpdate()
     {
         MovePlayer();
+        RefreshNearbyInteractable();
+    }
+
+    // Look for the closest NPC in range and pop the interaction chip with its verb.
+    // Nothing near? Tuck the chip away. Runs only in FreeRoam (GameController gates
+    // HandleUpdate), so the prompt never lingers during dialog/battle.
+    private void RefreshNearbyInteractable()
+    {
+        NPCController closest = null;
+        float closestSqr = float.MaxValue;
+
+        Collider[] hits = Physics.OverlapSphere(transform.position, interactRange, npcLayer);
+        foreach (var hit in hits)
+        {
+            var npc = hit.GetComponent<NPCController>();
+            if (npc == null || !npc.gameObject.activeInHierarchy) continue;
+
+            float sqr = (npc.transform.position - transform.position).sqrMagnitude;
+            if (sqr < closestSqr) { closestSqr = sqr; closest = npc; }
+        }
+
+        nearbyNpc = closest;
+
+        var prompt = InteractionPrompt.Instance;
+        if (prompt == null) return;
+
+        if (closest != null) prompt.Show(closest.PromptVerb, this);
+        else prompt.Hide(this);
     }
 
     private void MovePlayer()
@@ -92,18 +123,26 @@ public class PlayerController : MonoBehaviour
 
     private void TryInteract()
     {
-        // Look for an NPC right around the player.
-        Collider[] hits = Physics.OverlapSphere(transform.position, interactRange, npcLayer);
-
-        foreach (var hit in hits)
+        // Prefer the NPC the prompt's already pointing at (closest in range). Fall back
+        // to a fresh overlap in case we got here without a refresh this frame.
+        var npc = nearbyNpc;
+        if (npc == null)
         {
-            var npc = hit.GetComponent<NPCController>();
-            if (npc != null)
+            Collider[] hits = Physics.OverlapSphere(transform.position, interactRange, npcLayer);
+            foreach (var hit in hits)
             {
-                npc.Interact(this);
-                return; // just talk to the first one we find
+                npc = hit.GetComponent<NPCController>();
+                if (npc != null) break; // just talk to the first one we find
             }
         }
+
+        if (npc == null) return;
+
+        // Chip's done its job - hide it before the dialog/recruit takes over (state
+        // leaves FreeRoam, so RefreshNearbyInteractable won't run to hide it for us).
+        InteractionPrompt.Instance?.Hide(this);
+        nearbyNpc = null;
+        npc.Interact(this);
     }
 
     // --- Called by EncounterTrigger ---

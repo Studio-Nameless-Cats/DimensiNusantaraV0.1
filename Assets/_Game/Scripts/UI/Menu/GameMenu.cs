@@ -59,8 +59,10 @@ namespace Nusantara.UI
         [Header("Tabs (Character / Party / Quest / Inventory)")]
         [SerializeField] private List<Tab> tabs = new List<Tab>();
         [Tooltip("Tint applied to the active tab button's targetGraphic.")]
-        [SerializeField] private Color activeTabColor   = new Color(1f, 0.85f, 0.4f, 1f);
-        [SerializeField] private Color inactiveTabColor = Color.white;
+        // Active tab = "where you are" = the Accent role. Inactive sits at the neutral
+        // light (OnDark) so it reads as un-highlighted. See GUIDE_Color_Usage.
+        [SerializeField] private Color activeTabColor   = NusantaraPalette.Role.Accent;
+        [SerializeField] private Color inactiveTabColor = NusantaraPalette.Role.OnDark;
 
         [Header("Sub-panels")]
         [SerializeField] private SaveSlotPanel saveSlotPanel;

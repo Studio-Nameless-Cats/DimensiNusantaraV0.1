@@ -33,6 +33,12 @@ namespace Nusantara.UI.Motion
         [Tooltip("Little arrow/marker shown next to the focused row. Leave null if you don't have one.")]
         [SerializeField] private GameObject chevron;
 
+        [Header("Optional click sound override")]
+        [Tooltip("Custom click sound for THIS button instead of the menu's shared confirm blip. Drag a clip for a one-off, OR use the library id below. Leave both empty and the button uses the normal confirm sound (via MotionEvents). Needs an AudioManager in the scene.")]
+        [SerializeField] private AudioClip clickSfxClip;
+        [Tooltip("Library sfx id for this button's click. Used only when no Click Sfx Clip is set above.")]
+        [SerializeField] private string clickSfxId = "";
+
         // cached rest values so we always pop/return relative to where the row lives
         private RectTransform _rt;
         private Vector3 _baseScale;
@@ -126,7 +132,22 @@ namespace Nusantara.UI.Motion
         {
             if (profile == null) return;
             _rt.Pulse(profile);
-            MotionEvents.RaiseConfirm();
+
+            // If this button has its own click sound, play that and skip the shared
+            // confirm blip so we don't double up. Otherwise raise the normal event
+            // and let AudioManager play the menu-wide confirm sound.
+            if (HasClickOverride()) PlayClickOverride();
+            else MotionEvents.RaiseConfirm();
+        }
+
+        private bool HasClickOverride() => clickSfxClip != null || !string.IsNullOrEmpty(clickSfxId);
+
+        private void PlayClickOverride()
+        {
+            var am = AudioManager.Instance;
+            if (am == null) return;
+            if (clickSfxClip != null) am.PlaySfx(clickSfxClip);
+            else am.PlaySfx(clickSfxId);
         }
 
         // True only if 'g' exists and sits somewhere inside THIS button's hierarchy.

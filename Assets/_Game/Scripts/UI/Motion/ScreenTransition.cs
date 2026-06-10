@@ -57,7 +57,6 @@ namespace Nusantara.UI.Motion
             // Stay covered (set in Awake) through the load hitch, then wipe on a normal frame.
             yield return null;
             yield return null;
-            Debug.Log($"[ScreenTransition] Auto-reveal wipe starting on '{name}'.");  // TEMP: remove once confirmed
             Reveal();
         }
 

@@ -7,7 +7,7 @@
 ## Project at a glance
 
 - **Title:** Dimensi Nusantara (Nusantara RPG)
-- **Engine:** Unity (C#)
+- **Engine:** Unity (C#) — **new Input System package only**: legacy `UnityEngine.Input` is disabled and throws `InvalidOperationException` at runtime. Poll input via `UnityEngine.InputSystem` (`Keyboard.current.xKey.wasPressedThisFrame`, `Mouse.current`, etc.) in all scripts.
 - **Genre:** RPG with party system, turn-based battle, world exploration
 - **Cultural setting:** Indonesian / Nusantara
 - **Code folder:** `Assets/_Game/Scripts/` — edited directly in the Unity project at `C:\Users\Fantom\Documents\Unity\DimensiNusantaraV0.1`. Cowork's selected folder is this Unity project root.
