@@ -74,6 +74,9 @@ namespace Nusantara.UI
         [SerializeField] private InventoryItemChip chipPrefab;
         [Tooltip("Shown when the current tab has no items.")]
         [SerializeField] private TextMeshProUGUI emptyListText;
+        [Tooltip("Optional ScrollRect around the chip list. Wire it and arrow-key navigation " +
+                 "keeps the selected chip in view; leave null if the list doesn't scroll.")]
+        [SerializeField] private ScrollRect chipScroll;
 
         [Header("Header")]
         [Tooltip("The '24 / 60' capacity counter next to the INVENTARIS title.")]
@@ -284,6 +287,55 @@ namespace Nusantara.UI
 
             bool any = index >= 0 && index < _visibleStacks.Count;
             ShowTooltip(any ? _visibleStacks[index].Data : null, animateTooltip);
+
+            if (any) EnsureChipVisible(index);
+        }
+
+        // Scrolls the chip list just enough that the selected chip sits inside the
+        // viewport. The ScrollRect handles mouse wheel / drag on its own; this covers
+        // arrow-key navigation, which the ScrollRect knows nothing about. No-op when
+        // no ScrollRect is wired or everything already fits.
+        //
+        // Assumes the standard vertical setup (see GUIDE_Inventory_Editor): content
+        // pivot/anchor at the TOP, so content.anchoredPosition.y = how far we've
+        // scrolled down, and each chip's anchoredPosition.y is negative going down.
+        private void EnsureChipVisible(int index)
+        {
+            if (chipScroll == null || chipScroll.content == null) return;
+            if (index < 0 || index >= _chips.Count) return;
+
+            // Chips may have just been (re)built this frame - force the Layout Group to
+            // place them now, otherwise we'd read stale positions.
+            Canvas.ForceUpdateCanvases();
+
+            var content  = chipScroll.content;
+            var viewport = chipScroll.viewport != null
+                ? chipScroll.viewport
+                : (RectTransform)chipScroll.transform;
+
+            float viewHeight = viewport.rect.height;
+            float maxScroll  = Mathf.Max(0f, content.rect.height - viewHeight);
+            if (maxScroll <= 0f) return;   // everything fits, nothing to do
+
+            var chip = (RectTransform)_chips[index].transform;
+
+            // Chip's top/bottom measured downward from the content's top edge.
+            float chipTop    = -chip.anchoredPosition.y - chip.rect.height * (1f - chip.pivot.y);
+            float chipBottom = chipTop + chip.rect.height;
+
+            // The window we can currently see, in the same "distance from top" space.
+            float scrollY = content.anchoredPosition.y;
+
+            if (chipTop < scrollY)                        // selected chip is above the window
+                scrollY = chipTop;
+            else if (chipBottom > scrollY + viewHeight)   // below the window
+                scrollY = chipBottom - viewHeight;
+            else
+                return;                                   // already visible
+
+            content.anchoredPosition = new Vector2(
+                content.anchoredPosition.x,
+                Mathf.Clamp(scrollY, 0f, maxScroll));
         }
 
         // --- Tooltip card ---

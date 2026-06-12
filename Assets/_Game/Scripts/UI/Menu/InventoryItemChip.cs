@@ -36,6 +36,8 @@ namespace Nusantara.UI
 
         void Awake()
         {
+            // Self-heal: fall back to the Button on this same object if the field's empty.
+            if (button == null) button = GetComponent<Button>();
             if (button != null) button.onClick.AddListener(() => _onClicked?.Invoke());
             CaptureHome();
         }

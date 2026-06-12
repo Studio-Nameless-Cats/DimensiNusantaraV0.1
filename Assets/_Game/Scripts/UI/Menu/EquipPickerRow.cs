@@ -20,15 +20,32 @@ namespace Nusantara.UI
         [SerializeField] private Button button;
 
         private Action _onClicked;
+        private string _label;
 
         void Awake()
         {
-            if (button != null) button.onClick.AddListener(() => _onClicked?.Invoke());
+            // Self-heal: if the field wasn't wired on the prefab, grab the Button that
+            // lives on this same object. A row whose click goes nowhere is useless.
+            if (button == null) button = GetComponent<Button>();
+
+            if (button != null)
+            {
+                button.onClick.AddListener(() =>
+                {
+                    Debug.Log($"[EquipPickerRow] Clicked: {_label}");
+                    _onClicked?.Invoke();
+                });
+            }
+            else
+            {
+                Debug.LogWarning($"[EquipPickerRow] No Button found on '{name}' - clicks on this row will do nothing.");
+            }
         }
 
         public void Setup(string label, int count, string deltaRichText, Action onClicked)
         {
             _onClicked = onClicked;
+            _label = label;
 
             if (nameText != null) nameText.text = label;
             if (countText != null)

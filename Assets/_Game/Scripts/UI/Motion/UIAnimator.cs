@@ -176,9 +176,15 @@ namespace Nusantara.UI.Motion
             // inherit the parent's sorting / render mode - we only want the batch
             // split, not a different draw order.
             _ownCanvas.overrideSorting = false;
-            // heads up: a nested canvas is still covered by the parent's
-            // GraphicRaycaster, so we do NOT add another raycaster here - that'd
-            // just be extra cost for no reason.
+
+            // A nested canvas STEALS its children from the parent's GraphicRaycaster:
+            // graphics register with the nearest canvas above them, and a raycaster
+            // only checks its own canvas's graphics. Without a raycaster here, every
+            // Button under this element goes silently unclickable (this is exactly
+            // what broke the equip picker's rows). So the canvas always brings its
+            // own raycaster along. Costs nothing when there's nothing to click.
+            if (GetComponent<UnityEngine.UI.GraphicRaycaster>() == null)
+                gameObject.AddComponent<UnityEngine.UI.GraphicRaycaster>();
         }
 
         void OnEnable()
