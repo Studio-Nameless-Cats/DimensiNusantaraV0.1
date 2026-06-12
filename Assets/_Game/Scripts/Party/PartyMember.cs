@@ -77,12 +77,13 @@ public class PartyMember
     public string Name          => _base.Name;
     public int MaxHp            => _base.MaxHp   + Bonus(_base.HpGrowth);   // statuses never touch the max pools
     public int MaxMp            => _base.MaxMp   + Bonus(_base.MpGrowth);
-    // Attack/Defense/Speed scale with level AND get bent by any active status multipliers
-    // (Slow/Haste, Weaken/Rage, Guard/Break). With no statuses the multiplier is just 1, so
-    // these read exactly like before. Fully additive.
-    public int Attack           => Mathf.Max(0, Mathf.RoundToInt((_base.Attack  + Bonus(_base.AttackGrowth))  * StatusMult(StatModifier.Attack)));
-    public int Defense          => Mathf.Max(1, Mathf.RoundToInt((_base.Defense + Bonus(_base.DefenseGrowth)) * StatusMult(StatModifier.Defense)));
-    public int Speed            => Mathf.Max(0, Mathf.RoundToInt((_base.Speed   + Bonus(_base.SpeedGrowth))   * StatusMult(StatModifier.Speed)));
+    // Attack/Defense/Speed scale with level, add whatever the equipped gear gives
+    // (InventorySystem tracks equipment by character id; returns 0 when nothing's worn),
+    // and finally get bent by any active status multipliers (Slow/Haste, Weaken/Rage,
+    // Guard/Break). With no statuses the multiplier is just 1, so these read like before.
+    public int Attack           => Mathf.Max(0, Mathf.RoundToInt((_base.Attack  + Bonus(_base.AttackGrowth)  + InventorySystem.AttackBonusFor(_base.Id))  * StatusMult(StatModifier.Attack)));
+    public int Defense          => Mathf.Max(1, Mathf.RoundToInt((_base.Defense + Bonus(_base.DefenseGrowth) + InventorySystem.DefenseBonusFor(_base.Id)) * StatusMult(StatModifier.Defense)));
+    public int Speed            => Mathf.Max(0, Mathf.RoundToInt((_base.Speed   + Bonus(_base.SpeedGrowth)   + InventorySystem.SpeedBonusFor(_base.Id))   * StatusMult(StatModifier.Speed)));
 
     // --- Level & EXP ---
     public int  Level          => level;

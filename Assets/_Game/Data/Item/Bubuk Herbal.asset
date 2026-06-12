@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8e6b5368005de7b47b28c9ebf02440a8, type: 3}
+  m_Name: Bubuk Herbal
+  m_EditorClassIdentifier: Assembly-CSharp::ItemData
+  id: bubuk_herbal
+  itemName: Bubuk Herbal
+  category: 0
+  description: Bubuk untuk mengisi tenaga dalam
+  icon: {fileID: 21300000, guid: 67f4ea73235aaef43874efb626f0201d, type: 3}
+  effectType: 2
+  effectAmount: 20
+  effectScope: 0
+  equipSlot: 0
+  attackBonus: 0
+  defenseBonus: 0
+  speedBonus: 0
+  maxStack: 20

@@ -41,6 +41,8 @@ public class BattleSystem : MonoBehaviour
     [SerializeField] private DiceRollUI       diceRollUI;
     [SerializeField] private TargetSelector   targetSelector;
     [SerializeField] private SkillPanel       skillPanel;
+    [Tooltip("Optional picker for the ITEM command. Leave empty to keep items disabled in battle.")]
+    [SerializeField] private ItemPanel        itemPanel;
 
     [Header("Special gauge")]
     [Tooltip("Special-gauge points a player gains when they land a basic attack (0..100).")]
@@ -291,6 +293,7 @@ public class BattleSystem : MonoBehaviour
         dialogBox.OnAttackPressed  += HandleAttack;
         dialogBox.OnSkillPressed   += HandleSkill;
         dialogBox.OnSpecialPressed += HandleSpecial;
+        dialogBox.OnItemPressed    += HandleItem;
         dialogBox.OnRunPressed     += HandleRun;
     }
 
@@ -364,6 +367,103 @@ public class BattleSystem : MonoBehaviour
         });
     }
 
+    // --- Item button ---
+
+    private void HandleItem()
+    {
+        if (state != BattleState.PlayerAction) return;
+
+        if (itemPanel == null)
+        {
+            // No panel hooked up yet, so keep the menu open instead of leaving a dead button.
+            Debug.LogWarning("[BattleSystem] itemPanel not assigned, item command ignored.");
+            return;
+        }
+
+        var user = turnOrder[turnIndex];
+
+        CloseActionMenu();
+        state = BattleState.Busy;
+
+        // Static call on purpose: the Player GO (and InventorySystem.Instance) doesn't
+        // exist in the battle scene, but the bag is static and survives just fine.
+        itemPanel.Show(InventorySystem.BattleConsumables(), chosen =>
+        {
+            if (chosen == null)
+            {
+                // Tapped outside to cancel, back to the command menu.
+                OpenActionMenu();
+                return;
+            }
+            StartCoroutine(BeginItem(user, chosen));
+        });
+    }
+
+    // Figures out who the item hits, then uses it. Same shape as BeginSkill: party-wide
+    // items just go, single-target ones show the ally picker (or auto-pick when there's
+    // only one). Nothing is consumed until a target is locked in, so cancelling is free.
+    private IEnumerator BeginItem(BattleUnit user, ItemData item)
+    {
+        var allies = playerUnits.Where(u => !u.Member.IsFainted).ToList();
+        if (allies.Count == 0) { OpenActionMenu(); yield break; }
+
+        if (item.EffectScope == ItemEffectScope.WholeParty)
+        {
+            yield return PerformItem(user, item, allies);
+            yield break;
+        }
+
+        if (allies.Count == 1 || targetSelector == null)
+        {
+            yield return PerformItem(user, item, new List<BattleUnit> { allies[0] });
+            yield break;
+        }
+
+        targetSelector.Show(allies,
+            chosen => StartCoroutine(PerformItem(user, item, new List<BattleUnit> { chosen })),
+            onCancel: () => OpenActionMenu());
+    }
+
+    // Takes the item out of the bag, applies its effect to every target, then moves on.
+    // Using an item spends the whole turn.
+    private IEnumerator PerformItem(BattleUnit user, ItemData item, List<BattleUnit> targets)
+    {
+        // Pay first. If the item somehow vanished from the bag, just bail back to the menu.
+        if (!InventorySystem.ConsumeOne(item))
+        {
+            OpenActionMenu();
+            yield break;
+        }
+
+        state = BattleState.Busy;
+
+        yield return dialogBox.TypeDialog($"{user.Member.Name} memakai {item.Name}!");
+
+        foreach (var t in targets)
+        {
+            if (t.Member.IsFainted) continue;
+
+            switch (item.EffectType)
+            {
+                case ItemEffectType.HealHp:
+                    t.Member.Heal(item.EffectAmount);
+                    t.UpdateHud();
+                    yield return dialogBox.TypeDialog($"{t.Member.Name} pulih {item.EffectAmount} HP!");
+                    break;
+
+                case ItemEffectType.RestoreMp:
+                    t.Member.RestoreMp(item.EffectAmount);
+                    t.RefreshResources();
+                    yield return dialogBox.TypeDialog($"{t.Member.Name} memulihkan {item.EffectAmount} MP!");
+                    break;
+            }
+        }
+
+        // Nobody can faint from a heal, but ResolveAfterAction also handles the
+        // win/lose checks and turn advance in one place, so reuse it.
+        yield return ResolveAfterAction();
+    }
+
     private void CloseActionMenu()
     {
         UnsubscribeButtons();
@@ -376,6 +476,7 @@ public class BattleSystem : MonoBehaviour
         dialogBox.OnAttackPressed  -= HandleAttack;
         dialogBox.OnSkillPressed   -= HandleSkill;
         dialogBox.OnSpecialPressed -= HandleSpecial;
+        dialogBox.OnItemPressed    -= HandleItem;
         dialogBox.OnRunPressed     -= HandleRun;
     }
 

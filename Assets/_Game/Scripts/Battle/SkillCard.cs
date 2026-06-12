@@ -56,6 +56,27 @@ public class SkillCard : MonoBehaviour
             button.onClick.AddListener(() => onChosen?.Invoke());
     }
 
+    // Generic fill-in for non-skill stuff - the battle ITEM picker reuses this same card
+    // prefab. Name + optional icon + whatever goes in the cost corner ("x3", "+20 HP x3").
+    public void Bind(string name, Sprite iconSprite, string cornerText, bool enabled, Action onChosen)
+    {
+        if (button == null)      button = GetComponent<Button>();
+        if (canvasGroup == null) canvasGroup = GetComponent<CanvasGroup>();
+        if (button != null) button.onClick.RemoveAllListeners();
+
+        if (nameText) nameText.text = name;
+        if (costText) costText.text = cornerText ?? "";
+        if (icon)
+        {
+            icon.enabled = iconSprite != null;
+            icon.sprite  = iconSprite;
+        }
+
+        SetEnabled(enabled);
+        if (enabled && button != null)
+            button.onClick.AddListener(() => onChosen?.Invoke());
+    }
+
     private void SetEnabled(bool on)
     {
         if (button)      button.interactable = on;

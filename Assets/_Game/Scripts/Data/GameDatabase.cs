@@ -48,9 +48,15 @@ public class GameDatabase : ScriptableObject
     [Tooltip("Every player / recruitable character. Each must have a unique Id.")]
     [SerializeField] private List<CharacterData> characters = new List<CharacterData>();
 
-    private Dictionary<string, CharacterData> _characterById;
+    [Header("Items")]
+    [Tooltip("Every ItemData in the game. Each must have a unique Id. The save system " +
+             "uses this to turn saved item ids back into assets.")]
+    [SerializeField] private List<ItemData> items = new List<ItemData>();
 
-    // Builds the id -> character lookup table.
+    private Dictionary<string, CharacterData> _characterById;
+    private Dictionary<string, ItemData> _itemById;
+
+    // Builds the id -> asset lookup tables.
     private void BuildLookup()
     {
         _characterById = new Dictionary<string, CharacterData>();
@@ -64,6 +70,18 @@ public class GameDatabase : ScriptableObject
             }
             _characterById[c.Id] = c;
         }
+
+        _itemById = new Dictionary<string, ItemData>();
+        foreach (var i in items)
+        {
+            if (i == null || string.IsNullOrEmpty(i.Id)) continue;
+            if (_itemById.ContainsKey(i.Id))
+            {
+                Debug.LogWarning($"[GameDatabase] Two items share id '{i.Id}' ({i.Name}). Keeping only the first one.");
+                continue;
+            }
+            _itemById[i.Id] = i;
+        }
     }
 
     // Turns a saved id back into its CharacterData asset, or null if we don't know it.
@@ -72,5 +90,13 @@ public class GameDatabase : ScriptableObject
         if (string.IsNullOrEmpty(id)) return null;
         if (_characterById == null) BuildLookup();
         return _characterById.TryGetValue(id, out var data) ? data : null;
+    }
+
+    // Same deal for items: saved id in, ItemData asset out (or null).
+    public ItemData GetItem(string id)
+    {
+        if (string.IsNullOrEmpty(id)) return null;
+        if (_itemById == null) BuildLookup();
+        return _itemById.TryGetValue(id, out var data) ? data : null;
     }
 }

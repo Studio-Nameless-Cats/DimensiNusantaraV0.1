@@ -105,6 +105,8 @@ namespace Nusantara.UI
         void Update()
         {
             if (!escapeToggles) return;
+            // A popup sitting above us (equip picker etc.) owns Esc while it's open.
+            if (ModalGate.BlocksEscape) return;
             var kb = Keyboard.current;
             if (kb != null && kb.escapeKey.wasPressedThisFrame)
             {
@@ -123,6 +125,8 @@ namespace Nusantara.UI
 
             _open = true;
             _closing = false;
+            // Clear any stale modal claim (e.g. a picker destroyed mid-open last scene).
+            ModalGate.Reset();
             if (menuRoot != null) menuRoot.SetActive(true);
             GameController.Instance?.SetPaused(true);
 

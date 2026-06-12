@@ -28,6 +28,8 @@ public class BattleDialogBox : MonoBehaviour
     [SerializeField] private Button     skillButton;
     [SerializeField] private Button     specialSkillButton;
     [SerializeField] private Button     runButton;
+    [Tooltip("Optional ITEM command button. Leave empty until the battle item flow is wired - everything else works without it.")]
+    [SerializeField] private Button     itemButton;
 
     [Header("Motion (optional)")]
     [Tooltip("Assign to make the command buttons pop in (cascade) and the menu pop out when an action is chosen. Leave null for the old instant show/hide.")]
@@ -38,6 +40,7 @@ public class BattleDialogBox : MonoBehaviour
     public event Action OnSkillPressed;
     public event Action OnSpecialPressed;
     public event Action OnRunPressed;
+    public event Action OnItemPressed;
 
     // The action panel's resting scale, grabbed before we ever animate it so the
     // pop-out always returns to the right size.
@@ -68,6 +71,7 @@ public class BattleDialogBox : MonoBehaviour
         skillButton?.onClick.AddListener(()        => OnSkillPressed?.Invoke());
         specialSkillButton?.onClick.AddListener(() => OnSpecialPressed?.Invoke());
         runButton?.onClick.AddListener(()          => OnRunPressed?.Invoke());
+        itemButton?.onClick.AddListener(()         => OnItemPressed?.Invoke());   // optional, no error if unwired
 
         // Remember the panel's normal scale before anything animates it.
         if (actionPanel != null) _actionPanelHome = actionPanel.transform.localScale;
@@ -143,10 +147,11 @@ public class BattleDialogBox : MonoBehaviour
     // The four command buttons as RectTransforms, skipping any that aren't wired.
     private List<RectTransform> ActionButtonRects()
     {
-        var list = new List<RectTransform>(4);
+        var list = new List<RectTransform>(5);
         if (attackButton)       list.Add((RectTransform)attackButton.transform);
         if (skillButton)        list.Add((RectTransform)skillButton.transform);
         if (specialSkillButton) list.Add((RectTransform)specialSkillButton.transform);
+        if (itemButton)         list.Add((RectTransform)itemButton.transform);
         if (runButton)          list.Add((RectTransform)runButton.transform);
         return list;
     }
@@ -156,6 +161,7 @@ public class BattleDialogBox : MonoBehaviour
         if (attackButton)       attackButton.interactable       = enabled;
         if (skillButton)        skillButton.interactable        = enabled;
         if (specialSkillButton) specialSkillButton.interactable = enabled;
+        if (itemButton)         itemButton.interactable         = enabled;
         if (runButton)          runButton.interactable          = enabled;
     }
 }
